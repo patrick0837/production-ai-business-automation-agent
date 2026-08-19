@@ -1,0 +1,36 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# Build / coverage
+dist/
+build/
+coverage/
+htmlcov/
+.coverage
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
