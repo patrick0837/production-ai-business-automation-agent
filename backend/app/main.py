@@ -1,11 +1,13 @@
 from fastapi import FastAPI
 
+from .api.router import api_router
+from .core.config import get_settings
+
+settings = get_settings()
+
 app = FastAPI(
-    title="Production-Ready AI Business Automation Agent",
-    version="0.1.0",
+    title=settings.app_name,
+    version=settings.app_version,
 )
 
-
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
+app.include_router(api_router)
