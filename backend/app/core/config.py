@@ -17,7 +17,9 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
-
+    test_database_url: str = (
+        "postgresql+psycopg://postgres:postgres@localhost:5432/automation_agent_test"
+    )
 
 @lru_cache
 def get_settings() -> Settings:
