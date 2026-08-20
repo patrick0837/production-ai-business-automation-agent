@@ -13,7 +13,10 @@ from backend.app.core.config import get_settings
 from backend.app.db.base import Base
 from backend.app.db.session import get_db
 from backend.app.main import app
-from backend.app.services.task_dispatcher import get_task_dispatcher
+from backend.app.services.task_dispatcher import (
+    TaskDispatchError,
+    get_task_dispatcher,
+)
 
 
 # Ensure ORM models are registered in Base.metadata.
@@ -88,6 +91,29 @@ class FakeTaskDispatcher:
     ) -> None:
         return None
 
+
+class FailingTaskDispatcher:
+    async def enqueue_business_request(
+            self,
+            task_id: str,
+            request_id: str,
+            source: str,
+            content: str,
+    ) -> None:
+        raise TaskDispatchError(
+            "Simulated broker failure"
+        )
+
+
+@pytest.fixture
+def override_failing_task_dispatcher(
+        override_task_dispatcher,
+):
+    app.dependency_overrides[get_task_dispatcher] = (
+        lambda: FailingTaskDispatcher()
+    )
+
+    yield
 
 @pytest.fixture(autouse=True)
 def override_task_dispatcher():

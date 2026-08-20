@@ -1,21 +1,25 @@
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db.session import get_db
 from ...models.business_request import BusinessRequest
+
 from ...repositories.business_request import (
     create_business_request,
     list_business_requests,
+    mark_business_request_failed,
     mark_business_request_queued,
 )
 from ...schemas.business_request import (
     BusinessRequestCreate,
     BusinessRequestRead,
 )
+
 from ...services.task_dispatcher import (
     TaskDispatcher,
+    TaskDispatchError,
     get_task_dispatcher,
 )
 
@@ -48,12 +52,28 @@ async def create_request(
         celery_task_id=celery_task_id,
     )
 
-    await task_dispatcher.enqueue_business_request(
-        task_id=celery_task_id,
-        request_id=str(business_request.id),
-        source=business_request.source,
-        content=business_request.content,
-    )
+    try:
+        await task_dispatcher.enqueue_business_request(
+            task_id=celery_task_id,
+            request_id=str(business_request.id),
+            source=business_request.source,
+            content=business_request.content,
+        )
+
+    except TaskDispatchError as exc:
+        await mark_business_request_failed(
+             db=db,
+              business_request=business_request,
+        )
+
+        raise HTTPException(
+          status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+           detail={
+                  "status": "failed",
+                   "message": "Background task dispatch failed",
+                    "request_id": str(business_request.id),
+           },
+         ) from exc
 
     return business_request
 

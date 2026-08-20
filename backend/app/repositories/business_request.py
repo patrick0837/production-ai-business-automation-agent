@@ -34,6 +34,16 @@ async def mark_business_request_queued(
 
     return business_request
 
+async def mark_business_request_failed(
+        db: AsyncSession,
+        business_request: BusinessRequest,
+) -> BusinessRequest:
+    business_request.status = "failed"
+
+    await db.commit()
+    await db.refresh(business_request)
+
+    return business_request
 
 async def list_business_requests(
         db: AsyncSession,
