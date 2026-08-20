@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     test_database_url: str = (
         "postgresql+psycopg://postgres:postgres@localhost:5432/automation_agent_test"
     )
+    redis_url: str = "redis://localhost:6379/0"
 
 @lru_cache
 def get_settings() -> Settings:
