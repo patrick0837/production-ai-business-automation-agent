@@ -21,6 +21,9 @@ class Settings(BaseSettings):
         "postgresql+psycopg://postgres:postgres@localhost:5432/automation_agent_test"
     )
     redis_url: str = "redis://localhost:6379/0"
+    celery_broker_url: str = "redis://localhost:6379/1"
+    celery_result_backend: str = "redis://localhost:6379/2"
+
 
 @lru_cache
 def get_settings() -> Settings:
