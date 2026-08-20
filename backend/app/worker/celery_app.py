@@ -22,4 +22,5 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     broker_connection_retry_on_startup=True,
+    worker_deduplicate_successful_tasks=True,
 )

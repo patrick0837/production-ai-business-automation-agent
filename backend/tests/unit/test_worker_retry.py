@@ -150,3 +150,45 @@ def test_transient_failure_becomes_failed_after_max_retries(
         result.result,
         TransientProcessingError,
     )
+
+
+def test_completed_request_skips_duplicate_processing(
+        monkeypatch,
+):
+    request_id = str(uuid.uuid4())
+    task_id = str(uuid.uuid4())
+
+    business_request = SimpleNamespace(
+        celery_task_id=task_id,
+        status="completed",
+    )
+
+    configure_fake_worker(
+        monkeypatch,
+        business_request,
+    )
+
+    def should_not_run(content: str) -> str:
+        raise AssertionError(
+            "Duplicate task must not run processing again"
+        )
+
+    monkeypatch.setattr(
+        worker_tasks,
+        "determine_priority",
+        should_not_run,
+    )
+
+    result = worker_tasks.process_business_request.apply(
+        args=(
+            request_id,
+            "website",
+            "Enterprise automation request",
+        ),
+        task_id=task_id,
+    )
+
+    assert result.successful()
+    assert business_request.status == "completed"
+    assert result.result["status"] == "completed"
+    assert result.result["idempotent_replay"] is True

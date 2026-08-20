@@ -41,7 +41,9 @@ def get_retry_countdown(retries: int) -> int:
     bind=True,
     name="process_business_request",
     max_retries=MAX_TASK_RETRIES,
+    acks_late=True,
 )
+
 def process_business_request(
         self,
         request_id: str,
@@ -56,16 +58,24 @@ def process_business_request(
             )
 
             if (
-                    business_request.celery_task_id
-                    != self.request.id
+                business_request.celery_task_id
+                != self.request.id
             ):
                 raise ValueError(
                     "Celery task ID does not match "
                     "the business request"
                 )
+            if business_request.status == "completed":
+               return {
+                        "request_id": request_id,
+                        "source": source,
+                        "status": "completed",
+                        "idempotent_replay": True,
+               }
 
             business_request.status = "processing"
             db.commit()
+
 
             self.update_state(
                 state="PROCESSING",
