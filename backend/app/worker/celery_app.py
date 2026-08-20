@@ -9,6 +9,9 @@ celery_app = Celery(
     "automation_agent",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
+    include=[
+        "backend.app.worker.tasks",
+    ],
 )
 
 celery_app.conf.update(
