@@ -1,6 +1,8 @@
 from collections.abc import AsyncGenerator
 
+import pytest
 import pytest_asyncio
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
@@ -11,6 +13,8 @@ from backend.app.core.config import get_settings
 from backend.app.db.base import Base
 from backend.app.db.session import get_db
 from backend.app.main import app
+from backend.app.services.task_dispatcher import get_task_dispatcher
+
 
 # Ensure ORM models are registered in Base.metadata.
 from backend.app.models import BusinessRequest  # noqa: F401
@@ -68,4 +72,32 @@ async def override_database(
     try:
         yield
     finally:
-        app.dependency_overrides.clear()
+        app.dependency_overrides.pop(
+            get_db,
+            None,
+        )
+
+
+class FakeTaskDispatcher:
+    async def enqueue_business_request(
+            self,
+            request_id: str,
+            source: str,
+            content: str,
+    ) -> str:
+        return "test-celery-task-id"
+
+
+@pytest.fixture(autouse=True)
+def override_task_dispatcher():
+    app.dependency_overrides[get_task_dispatcher] = (
+        lambda: FakeTaskDispatcher()
+    )
+
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(
+            get_task_dispatcher,
+            None,
+        )

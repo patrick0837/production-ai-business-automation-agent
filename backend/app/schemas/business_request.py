@@ -14,6 +14,7 @@ class BusinessRequestRead(BaseModel):
     source: str
     content: str
     status: str
+    celery_task_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

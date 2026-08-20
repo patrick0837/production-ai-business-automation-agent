@@ -6,10 +6,15 @@ from ...models.business_request import BusinessRequest
 from ...repositories.business_request import (
     create_business_request,
     list_business_requests,
+    mark_business_request_queued,
 )
 from ...schemas.business_request import (
     BusinessRequestCreate,
     BusinessRequestRead,
+)
+from ...services.task_dispatcher import (
+    TaskDispatcher,
+    get_task_dispatcher,
 )
 
 router = APIRouter(
@@ -21,13 +26,29 @@ router = APIRouter(
 @router.post(
     "",
     response_model=BusinessRequestRead,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_request(
         data: BusinessRequestCreate,
         db: AsyncSession = Depends(get_db),
+        task_dispatcher: TaskDispatcher = Depends(get_task_dispatcher),
 ) -> BusinessRequest:
-    return await create_business_request(db, data)
+    business_request = await create_business_request(
+        db,
+        data,
+    )
+
+    celery_task_id = await task_dispatcher.enqueue_business_request(
+        request_id=str(business_request.id),
+        source=business_request.source,
+        content=business_request.content,
+    )
+
+    return await mark_business_request_queued(
+        db=db,
+        business_request=business_request,
+        celery_task_id=celery_task_id,
+    )
 
 
 @router.get(
