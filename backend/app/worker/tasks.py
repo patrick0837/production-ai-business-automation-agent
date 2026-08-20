@@ -5,6 +5,12 @@ from sqlalchemy.orm import Session
 from ..db.worker_session import WorkerSessionLocal
 from ..models.business_request import BusinessRequest
 from .celery_app import celery_app
+from .exceptions import TransientProcessingError
+from .processing import determine_priority
+
+
+MAX_TASK_RETRIES = 3
+MAX_RETRY_DELAY_SECONDS = 30
 
 
 def get_business_request(
@@ -24,9 +30,17 @@ def get_business_request(
     return business_request
 
 
+def get_retry_countdown(retries: int) -> int:
+    return min(
+        2 ** retries,
+        MAX_RETRY_DELAY_SECONDS,
+        )
+
+
 @celery_app.task(
     bind=True,
     name="process_business_request",
+    max_retries=MAX_TASK_RETRIES,
 )
 def process_business_request(
         self,
@@ -60,11 +74,7 @@ def process_business_request(
                 },
             )
 
-            priority = (
-                "high"
-                if "enterprise" in content.lower()
-                else "normal"
-            )
+            priority = determine_priority(content)
 
             business_request.status = "completed"
             db.commit()
@@ -75,6 +85,32 @@ def process_business_request(
                 "status": "completed",
                 "priority": priority,
             }
+
+        except TransientProcessingError as exc:
+            db.rollback()
+
+            business_request = get_business_request(
+                db,
+                request_id,
+            )
+
+            if self.request.retries >= MAX_TASK_RETRIES:
+                business_request.status = "failed"
+                db.commit()
+
+                raise
+
+            business_request.status = "retrying"
+            db.commit()
+
+            countdown = get_retry_countdown(
+                self.request.retries
+            )
+
+            raise self.retry(
+                exc=exc,
+                countdown=countdown,
+            )
 
         except Exception:
             db.rollback()
