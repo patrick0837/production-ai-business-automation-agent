@@ -81,11 +81,12 @@ async def override_database(
 class FakeTaskDispatcher:
     async def enqueue_business_request(
             self,
+            task_id: str,
             request_id: str,
             source: str,
             content: str,
-    ) -> str:
-        return "test-celery-task-id"
+    ) -> None:
+        return None
 
 
 @pytest.fixture(autouse=True)

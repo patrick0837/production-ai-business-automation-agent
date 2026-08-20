@@ -7,30 +7,31 @@ from ..worker.tasks import process_business_request
 class TaskDispatcher(Protocol):
     async def enqueue_business_request(
             self,
+            task_id: str,
             request_id: str,
             source: str,
             content: str,
-    ) -> str:
+    ) -> None:
         ...
 
 
 class CeleryTaskDispatcher:
     async def enqueue_business_request(
             self,
+            task_id: str,
             request_id: str,
             source: str,
             content: str,
-    ) -> str:
-        result = await asyncio.to_thread(
+    ) -> None:
+        await asyncio.to_thread(
             process_business_request.apply_async,
             args=[
                 request_id,
                 source,
                 content,
             ],
+            task_id=task_id,
         )
-
-        return result.id
 
 
 def get_task_dispatcher() -> TaskDispatcher:

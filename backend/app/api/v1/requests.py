@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,17 +40,22 @@ async def create_request(
         data,
     )
 
-    celery_task_id = await task_dispatcher.enqueue_business_request(
+    celery_task_id = str(uuid.uuid4())
+
+    business_request = await mark_business_request_queued(
+        db=db,
+        business_request=business_request,
+        celery_task_id=celery_task_id,
+    )
+
+    await task_dispatcher.enqueue_business_request(
+        task_id=celery_task_id,
         request_id=str(business_request.id),
         source=business_request.source,
         content=business_request.content,
     )
 
-    return await mark_business_request_queued(
-        db=db,
-        business_request=business_request,
-        celery_task_id=celery_task_id,
-    )
+    return business_request
 
 
 @router.get(

@@ -29,7 +29,7 @@ async def test_create_and_list_business_request(
         assert created["source"] == "integration-test"
         assert created["content"] == "Test enterprise automation request"
         assert created["status"] == "queued"
-        assert created["celery_task_id"] == "test-celery-task-id"
+        assert created["celery_task_id"] is not None
 
         # List business requests.
         list_response = await client.get(
@@ -43,9 +43,12 @@ async def test_create_and_list_business_request(
         assert len(requests) == 1
         assert requests[0]["id"] == created["id"]
         assert requests[0]["source"] == "integration-test"
-        assert requests[0]["content"] == "Test enterprise automation request"
+        assert (
+                requests[0]["content"]
+                == "Test enterprise automation request"
+        )
         assert requests[0]["status"] == "queued"
         assert (
                 requests[0]["celery_task_id"]
-                == "test-celery-task-id"
+                == created["celery_task_id"]
         )
