@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator
 import pytest
 import pytest_asyncio
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
@@ -18,9 +19,14 @@ from backend.app.services.task_dispatcher import (
     get_task_dispatcher,
 )
 
-
-# Ensure ORM models are registered in Base.metadata.
-from backend.app.models import BusinessRequest  # noqa: F401
+# Ensure all ORM models are registered in Base.metadata.
+from backend.app.models import (  # noqa: F401
+    AgentAction,
+    AuditEvent,
+    BusinessRequest,
+    KnowledgeChunk,
+    KnowledgeDocument,
+)
 
 
 settings = get_settings()
@@ -31,22 +37,45 @@ test_engine = create_async_engine(
 )
 
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
+@pytest_asyncio.fixture(
+    scope="session",
+    autouse=True,
+)
 async def prepare_test_database():
     async with test_engine.begin() as connection:
-        await connection.run_sync(Base.metadata.drop_all)
-        await connection.run_sync(Base.metadata.create_all)
+        # pgvector is installed at the PostgreSQL server
+        # level, but extensions are enabled per database.
+        # Ensure the isolated test database supports
+        # VECTOR columns before creating ORM tables.
+        await connection.execute(
+            text(
+                "CREATE EXTENSION IF NOT EXISTS vector"
+            )
+        )
+
+        await connection.run_sync(
+            Base.metadata.drop_all
+        )
+
+        await connection.run_sync(
+            Base.metadata.create_all
+        )
 
     yield
 
     async with test_engine.begin() as connection:
-        await connection.run_sync(Base.metadata.drop_all)
+        await connection.run_sync(
+            Base.metadata.drop_all
+        )
 
     await test_engine.dispose()
 
 
 @pytest_asyncio.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
+async def db_session() -> AsyncGenerator[
+    AsyncSession,
+    None,
+]:
     async with test_engine.connect() as connection:
         transaction = await connection.begin()
 
@@ -70,7 +99,9 @@ async def override_database(
     async def override_get_db():
         yield db_session
 
-    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[
+        get_db
+    ] = override_get_db
 
     try:
         yield
@@ -109,15 +140,20 @@ class FailingTaskDispatcher:
 def override_failing_task_dispatcher(
         override_task_dispatcher,
 ):
-    app.dependency_overrides[get_task_dispatcher] = (
+    app.dependency_overrides[
+        get_task_dispatcher
+    ] = (
         lambda: FailingTaskDispatcher()
     )
 
     yield
 
+
 @pytest.fixture(autouse=True)
 def override_task_dispatcher():
-    app.dependency_overrides[get_task_dispatcher] = (
+    app.dependency_overrides[
+        get_task_dispatcher
+    ] = (
         lambda: FakeTaskDispatcher()
     )
 
