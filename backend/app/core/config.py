@@ -22,8 +22,21 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://localhost:6379/2"
 
     ai_provider: str = "ollama"
-    ollama_base_url: str = "http://localhost:11434"
+
+
+    ollama_base_url: str = (
+        "http://localhost:11434"
+    )
+
     ollama_model: str = "qwen3:4b-instruct"
+
+    embedding_provider: str = "ollama"
+
+    ollama_embedding_model: str = (
+          "nomic-embed-text:v1.5"
+    )
+
+    embedding_dimensions: int = 768
 
     model_config = SettingsConfigDict(
         env_file=".env",
