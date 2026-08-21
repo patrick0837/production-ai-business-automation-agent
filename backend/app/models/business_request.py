@@ -1,7 +1,14 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text, Uuid, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    String,
+    Text,
+    Uuid,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db.base import Base
@@ -38,6 +45,32 @@ class BusinessRequest(Base):
         nullable=True,
         unique=True,
         index=True,
+    )
+
+    category: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    priority: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        index=True,
+    )
+
+    intent: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+    )
+
+    requires_human_approval: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+    )
+
+    recommended_action: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(
