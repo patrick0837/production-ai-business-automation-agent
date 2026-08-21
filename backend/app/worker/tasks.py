@@ -6,7 +6,7 @@ from ..db.worker_session import WorkerSessionLocal
 from ..models.business_request import BusinessRequest
 from .celery_app import celery_app
 from .exceptions import TransientProcessingError
-from .processing import determine_priority
+from .processing import analyze_business_request
 
 
 MAX_TASK_RETRIES = 3
@@ -43,7 +43,6 @@ def get_retry_countdown(retries: int) -> int:
     max_retries=MAX_TASK_RETRIES,
     acks_late=True,
 )
-
 def process_business_request(
         self,
         request_id: str,
@@ -58,24 +57,24 @@ def process_business_request(
             )
 
             if (
-                business_request.celery_task_id
-                != self.request.id
+                    business_request.celery_task_id
+                    != self.request.id
             ):
                 raise ValueError(
                     "Celery task ID does not match "
                     "the business request"
                 )
+
             if business_request.status == "completed":
-               return {
-                        "request_id": request_id,
-                        "source": source,
-                        "status": "completed",
-                        "idempotent_replay": True,
-               }
+                return {
+                    "request_id": request_id,
+                    "source": source,
+                    "status": "completed",
+                    "idempotent_replay": True,
+                }
 
             business_request.status = "processing"
             db.commit()
-
 
             self.update_state(
                 state="PROCESSING",
@@ -84,7 +83,20 @@ def process_business_request(
                 },
             )
 
-            priority = determine_priority(content)
+            analysis = analyze_business_request(
+                source=source,
+                content=content,
+            )
+
+            business_request.category = analysis.category
+            business_request.priority = analysis.priority
+            business_request.intent = analysis.intent
+            business_request.requires_human_approval = (
+                analysis.requires_human_approval
+            )
+            business_request.recommended_action = (
+                analysis.recommended_action
+            )
 
             business_request.status = "completed"
             db.commit()
@@ -93,7 +105,15 @@ def process_business_request(
                 "request_id": request_id,
                 "source": source,
                 "status": "completed",
-                "priority": priority,
+                "category": analysis.category,
+                "priority": analysis.priority,
+                "intent": analysis.intent,
+                "requires_human_approval": (
+                    analysis.requires_human_approval
+                ),
+                "recommended_action": (
+                    analysis.recommended_action
+                ),
             }
 
         except TransientProcessingError as exc:

@@ -1,6 +1,9 @@
 import uuid
 from types import SimpleNamespace
 
+from backend.app.schemas.ai_analysis import (
+    BusinessRequestAnalysis,
+)
 from backend.app.worker import tasks as worker_tasks
 from backend.app.worker.exceptions import (
     TransientProcessingError,
@@ -58,6 +61,11 @@ def test_transient_failure_retries_then_completes(
     business_request = SimpleNamespace(
         celery_task_id=task_id,
         status="queued",
+        category=None,
+        priority=None,
+        intent=None,
+        requires_human_approval=None,
+        recommended_action=None,
     )
 
     configure_fake_worker(
@@ -67,7 +75,10 @@ def test_transient_failure_retries_then_completes(
 
     attempts = {"count": 0}
 
-    def flaky_priority(content: str) -> str:
+    def flaky_analysis(
+            source: str,
+            content: str,
+    ) -> BusinessRequestAnalysis:
         attempts["count"] += 1
 
         if attempts["count"] < 3:
@@ -75,12 +86,20 @@ def test_transient_failure_retries_then_completes(
                 "Temporary dependency failure"
             )
 
-        return "high"
+        return BusinessRequestAnalysis(
+            category="support",
+            priority="high",
+            intent="enterprise_support",
+            requires_human_approval=True,
+            recommended_action=(
+                "Escalate to support team."
+            ),
+        )
 
     monkeypatch.setattr(
         worker_tasks,
-        "determine_priority",
-        flaky_priority,
+        "analyze_business_request",
+        flaky_analysis,
     )
 
     result = worker_tasks.process_business_request.apply(
@@ -94,9 +113,39 @@ def test_transient_failure_retries_then_completes(
 
     assert result.successful()
     assert attempts["count"] == 3
+
     assert business_request.status == "completed"
+
+    assert business_request.category == "support"
+    assert business_request.priority == "high"
+    assert (
+            business_request.intent
+            == "enterprise_support"
+    )
+    assert (
+            business_request.requires_human_approval
+            is True
+    )
+    assert (
+            business_request.recommended_action
+            == "Escalate to support team."
+    )
+
     assert result.result["status"] == "completed"
+    assert result.result["category"] == "support"
     assert result.result["priority"] == "high"
+    assert (
+            result.result["intent"]
+            == "enterprise_support"
+    )
+    assert (
+            result.result["requires_human_approval"]
+            is True
+    )
+    assert (
+            result.result["recommended_action"]
+            == "Escalate to support team."
+    )
 
     assert worker_tasks.get_retry_countdown(0) == 1
     assert worker_tasks.get_retry_countdown(1) == 2
@@ -112,6 +161,11 @@ def test_transient_failure_becomes_failed_after_max_retries(
     business_request = SimpleNamespace(
         celery_task_id=task_id,
         status="queued",
+        category=None,
+        priority=None,
+        intent=None,
+        requires_human_approval=None,
+        recommended_action=None,
     )
 
     configure_fake_worker(
@@ -121,7 +175,10 @@ def test_transient_failure_becomes_failed_after_max_retries(
 
     attempts = {"count": 0}
 
-    def always_fail(content: str) -> str:
+    def always_fail(
+            source: str,
+            content: str,
+    ):
         attempts["count"] += 1
 
         raise TransientProcessingError(
@@ -130,7 +187,7 @@ def test_transient_failure_becomes_failed_after_max_retries(
 
     monkeypatch.setattr(
         worker_tasks,
-        "determine_priority",
+        "analyze_business_request",
         always_fail,
     )
 
@@ -146,6 +203,7 @@ def test_transient_failure_becomes_failed_after_max_retries(
     assert result.failed()
     assert attempts["count"] == 4
     assert business_request.status == "failed"
+
     assert isinstance(
         result.result,
         TransientProcessingError,
@@ -161,6 +219,13 @@ def test_completed_request_skips_duplicate_processing(
     business_request = SimpleNamespace(
         celery_task_id=task_id,
         status="completed",
+        category="support",
+        priority="high",
+        intent="enterprise_support",
+        requires_human_approval=True,
+        recommended_action=(
+            "Escalate to support team."
+        ),
     )
 
     configure_fake_worker(
@@ -168,14 +233,18 @@ def test_completed_request_skips_duplicate_processing(
         business_request,
     )
 
-    def should_not_run(content: str) -> str:
+    def should_not_run(
+            source: str,
+            content: str,
+    ):
         raise AssertionError(
-            "Duplicate task must not run processing again"
+            "Duplicate task must not run "
+            "AI processing again"
         )
 
     monkeypatch.setattr(
         worker_tasks,
-        "determine_priority",
+        "analyze_business_request",
         should_not_run,
     )
 
