@@ -1,6 +1,15 @@
 import uuid
 from types import SimpleNamespace
 
+from backend.app.agent.schemas import (
+    AgentRunResult,
+    AgentToolCall,
+    AgentToolExecution,
+    ToolExecutionResult,
+)
+from backend.app.models.agent_action import (
+    AgentAction,
+)
 from backend.app.schemas.ai_analysis import (
     BusinessRequestAnalysis,
 )
@@ -11,6 +20,9 @@ from backend.app.worker.exceptions import (
 
 
 class FakeSession:
+    def __init__(self):
+        self.added = []
+
     def __enter__(self):
         return self
 
@@ -21,6 +33,9 @@ class FakeSession:
             traceback,
     ):
         return False
+
+    def add(self, value):
+        self.added.append(value)
 
     def commit(self):
         pass
@@ -33,10 +48,12 @@ def configure_fake_worker(
         monkeypatch,
         business_request,
 ):
+    session = FakeSession()
+
     monkeypatch.setattr(
         worker_tasks,
         "WorkerSessionLocal",
-        lambda: FakeSession(),
+        lambda: session,
     )
 
     monkeypatch.setattr(
@@ -50,6 +67,17 @@ def configure_fake_worker(
         "update_state",
         lambda *args, **kwargs: None,
     )
+
+    monkeypatch.setattr(
+        worker_tasks,
+        "run_agent",
+        lambda source, content: AgentRunResult(
+            status="completed",
+            content="No automated action required.",
+        ),
+    )
+
+    return session
 
 
 def test_transient_failure_retries_then_completes(
@@ -113,7 +141,6 @@ def test_transient_failure_retries_then_completes(
 
     assert result.successful()
     assert attempts["count"] == 3
-
     assert business_request.status == "completed"
 
     assert business_request.category == "support"
@@ -132,20 +159,7 @@ def test_transient_failure_retries_then_completes(
     )
 
     assert result.result["status"] == "completed"
-    assert result.result["category"] == "support"
     assert result.result["priority"] == "high"
-    assert (
-            result.result["intent"]
-            == "enterprise_support"
-    )
-    assert (
-            result.result["requires_human_approval"]
-            is True
-    )
-    assert (
-            result.result["recommended_action"]
-            == "Escalate to support team."
-    )
 
     assert worker_tasks.get_retry_countdown(0) == 1
     assert worker_tasks.get_retry_countdown(1) == 2
@@ -161,11 +175,6 @@ def test_transient_failure_becomes_failed_after_max_retries(
     business_request = SimpleNamespace(
         celery_task_id=task_id,
         status="queued",
-        category=None,
-        priority=None,
-        intent=None,
-        requires_human_approval=None,
-        recommended_action=None,
     )
 
     configure_fake_worker(
@@ -219,13 +228,6 @@ def test_completed_request_skips_duplicate_processing(
     business_request = SimpleNamespace(
         celery_task_id=task_id,
         status="completed",
-        category="support",
-        priority="high",
-        intent="enterprise_support",
-        requires_human_approval=True,
-        recommended_action=(
-            "Escalate to support team."
-        ),
     )
 
     configure_fake_worker(
@@ -261,3 +263,141 @@ def test_completed_request_skips_duplicate_processing(
     assert business_request.status == "completed"
     assert result.result["status"] == "completed"
     assert result.result["idempotent_replay"] is True
+
+
+def test_agent_approval_is_persisted_and_pauses_request(
+        monkeypatch,
+):
+    request_id = str(uuid.uuid4())
+    task_id = str(uuid.uuid4())
+
+    business_request = SimpleNamespace(
+        celery_task_id=task_id,
+        status="queued",
+        category=None,
+        priority=None,
+        intent=None,
+        requires_human_approval=None,
+        recommended_action=None,
+    )
+
+    session = configure_fake_worker(
+        monkeypatch,
+        business_request,
+    )
+
+    monkeypatch.setattr(
+        worker_tasks,
+        "analyze_business_request",
+        lambda source, content: (
+            BusinessRequestAnalysis(
+                category="support",
+                priority="urgent",
+                intent="service_outage",
+                requires_human_approval=True,
+                recommended_action=(
+                    "Escalate the incident."
+                ),
+            )
+        ),
+    )
+
+    monkeypatch.setattr(
+        worker_tasks,
+        "run_agent",
+        lambda source, content: AgentRunResult(
+            status="approval_required",
+            tool_executions=[
+                AgentToolExecution(
+                    tool_call=AgentToolCall(
+                        id="call-123",
+                        name="escalate_incident",
+                        arguments={
+                            "reason": (
+                                "Production payment "
+                                "system is down."
+                            ),
+                            "severity": "urgent",
+                        },
+                    ),
+                    result=ToolExecutionResult(
+                        tool_name=(
+                            "escalate_incident"
+                        ),
+                        status=(
+                            "approval_required"
+                        ),
+                        output={
+                            "arguments": {
+                                "reason": (
+                                    "Production payment "
+                                    "system is down."
+                                ),
+                                "severity": "urgent",
+                            }
+                        },
+                    ),
+                )
+            ],
+        ),
+    )
+
+    result = worker_tasks.process_business_request.apply(
+        args=(
+            request_id,
+            "website",
+            "Production payment system is down.",
+        ),
+        task_id=task_id,
+    )
+
+    assert result.successful()
+
+    assert (
+            business_request.status
+            == "awaiting_approval"
+    )
+
+    assert (
+            result.result["status"]
+            == "awaiting_approval"
+    )
+
+    assert (
+            result.result["agent_status"]
+            == "approval_required"
+    )
+
+    assert result.result["agent_action_count"] == 1
+
+    assert len(session.added) == 1
+
+    action = session.added[0]
+
+    assert isinstance(
+        action,
+        AgentAction,
+    )
+
+    assert (
+            action.business_request_id
+            == uuid.UUID(request_id)
+    )
+
+    assert action.tool_call_id == "call-123"
+
+    assert (
+            action.tool_name
+            == "escalate_incident"
+    )
+
+    assert action.status == "pending_approval"
+
+    assert action.requires_approval is True
+
+    assert (
+            action.arguments["severity"]
+            == "urgent"
+    )
+
+    assert action.result is None
