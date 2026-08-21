@@ -22,16 +22,52 @@ services:
 
     environment:
       DATABASE_URL: ${DOCKER_DATABASE_URL:?DOCKER_DATABASE_URL is required}
+
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
+
       AI_PROVIDER: ollama
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: qwen3:4b-instruct
 
+      EMBEDDING_PROVIDER: ollama
+      OLLAMA_EMBEDDING_MODEL: nomic-embed-text:v1.5
+      EMBEDDING_DIMENSIONS: 768
+
     depends_on:
       redis:
         condition: service_healthy
+
     restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: automation-agent-n8n
+
+    ports:
+      - "5678:5678"
+
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?N8N_ENCRYPTION_KEY is required}
+
+      N8N_SECURE_COOKIE: "false"
+
+      GENERIC_TIMEZONE: Europe/Dublin
+      TZ: Europe/Dublin
+
+      BACKEND_BASE_URL: http://host.docker.internal:8000
+      BACKEND_WEBHOOK_SECRET: ${WEBHOOK_SECRET:?WEBHOOK_SECRET is required}
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+    restart: unless-stopped
+
 
 volumes:
   redis_data:
+  n8n_data:
