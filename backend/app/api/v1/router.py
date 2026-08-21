@@ -9,6 +9,9 @@ from .audit_events import (
 from .requests import (
     router as requests_router,
 )
+from .webhooks import (
+    router as webhooks_router,
+)
 
 
 api_v1_router = APIRouter()
@@ -23,4 +26,8 @@ api_v1_router.include_router(
 
 api_v1_router.include_router(
     audit_events_router
+)
+
+api_v1_router.include_router(
+    webhooks_router
 )
