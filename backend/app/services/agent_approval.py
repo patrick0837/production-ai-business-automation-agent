@@ -11,6 +11,7 @@ from ..models.agent_action import AgentAction
 from ..models.business_request import (
     BusinessRequest,
 )
+from .audit import create_audit_event
 
 
 class AgentActionNotFoundError(
@@ -141,6 +142,20 @@ async def approve_agent_action(
             "human approval"
         )
 
+    db.add(
+        create_audit_event(
+            event_type="action_approved",
+            actor_type="human",
+            business_request_id=(
+                action.business_request_id
+            ),
+            agent_action_id=action.id,
+            details={
+                "tool_name": action.tool_name,
+            },
+        )
+    )
+
     try:
         execution_result = await asyncio.to_thread(
             execute_approved_tool,
@@ -149,12 +164,53 @@ async def approve_agent_action(
         )
 
     except Exception as exc:
+        db.add(
+            create_audit_event(
+                event_type="tool_failed",
+                actor_type="system",
+                business_request_id=(
+                    action.business_request_id
+                ),
+                agent_action_id=action.id,
+                details={
+                    "tool_name": action.tool_name,
+                    "error_type": (
+                        type(exc).__name__
+                    ),
+                },
+            )
+        )
+
+        # Persist the audit trail while leaving the
+        # action in pending_approval for a retry.
+        await db.commit()
+
         raise AgentActionExecutionError(
             "Approved agent action "
             "could not be executed"
         ) from exc
 
     if execution_result.status != "completed":
+        db.add(
+            create_audit_event(
+                event_type="tool_failed",
+                actor_type="system",
+                business_request_id=(
+                    action.business_request_id
+                ),
+                agent_action_id=action.id,
+                details={
+                    "tool_name": action.tool_name,
+                    "reason": (
+                        "Tool did not return "
+                        "completed status"
+                    ),
+                },
+            )
+        )
+
+        await db.commit()
+
         raise AgentActionExecutionError(
             "Approved agent action did not "
             "complete successfully"
@@ -162,6 +218,21 @@ async def approve_agent_action(
 
     action.status = "completed"
     action.result = execution_result.output
+
+    db.add(
+        create_audit_event(
+            event_type="tool_executed",
+            actor_type="system",
+            business_request_id=(
+                action.business_request_id
+            ),
+            agent_action_id=action.id,
+            details={
+                "tool_name": action.tool_name,
+                "result": execution_result.output,
+            },
+        )
+    )
 
     await db.flush()
 
@@ -213,6 +284,25 @@ async def reject_agent_action(
         rejection_result["reason"] = reason
 
     action.result = rejection_result
+
+    audit_details = {
+        "tool_name": action.tool_name,
+    }
+
+    if reason:
+        audit_details["reason"] = reason
+
+    db.add(
+        create_audit_event(
+            event_type="action_rejected",
+            actor_type="human",
+            business_request_id=(
+                action.business_request_id
+            ),
+            agent_action_id=action.id,
+            details=audit_details,
+        )
+    )
 
     await db.flush()
 

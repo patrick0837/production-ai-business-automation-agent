@@ -1,10 +1,12 @@
 import uuid
 
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
 from backend.app.agent.schemas import ToolExecutionResult
 from backend.app.main import app
 from backend.app.models.agent_action import AgentAction
+from backend.app.models.audit_event import AuditEvent
 from backend.app.models.business_request import BusinessRequest
 from backend.app.services import (
     agent_approval as agent_approval_service,
@@ -62,10 +64,7 @@ async def create_agent_action(
     # do not erase the fixture data.
     await db_session.commit()
 
-    await db_session.refresh(
-        business_request
-    )
-
+    await db_session.refresh(business_request)
     await db_session.refresh(action)
 
     return business_request, action
@@ -218,6 +217,69 @@ async def test_approve_agent_action_executes_once(
             == "completed"
     )
 
+    audit_result = await db_session.execute(
+        select(AuditEvent).where(
+            AuditEvent.agent_action_id
+            == action.id
+        )
+    )
+
+    audit_events = list(
+        audit_result.scalars().all()
+    )
+
+    # Duplicate approve must not create
+    # duplicate audit events.
+    assert len(audit_events) == 2
+
+    events_by_type = {
+        event.event_type: event
+        for event in audit_events
+    }
+
+    assert set(events_by_type) == {
+        "action_approved",
+        "tool_executed",
+    }
+
+    approved_event = events_by_type[
+        "action_approved"
+    ]
+
+    executed_event = events_by_type[
+        "tool_executed"
+    ]
+
+    assert approved_event.actor_type == "human"
+    assert executed_event.actor_type == "system"
+
+    assert (
+            approved_event.business_request_id
+            == business_request.id
+    )
+
+    assert (
+            approved_event.agent_action_id
+            == action.id
+    )
+
+    assert (
+            approved_event.details["tool_name"]
+            == "escalate_incident"
+    )
+
+    assert (
+            executed_event.details["tool_name"]
+            == "escalate_incident"
+    )
+
+    assert (
+            executed_event.details["result"][
+                "severity"
+            ]
+            == "urgent"
+    )
+
 
 async def test_reject_agent_action_without_execution(
         override_database,
@@ -319,6 +381,53 @@ async def test_reject_agent_action_without_execution(
             == "completed"
     )
 
+    audit_result = await db_session.execute(
+        select(AuditEvent).where(
+            AuditEvent.agent_action_id
+            == action.id
+        )
+    )
+
+    audit_events = list(
+        audit_result.scalars().all()
+    )
+
+    # Duplicate reject must not generate
+    # a duplicate audit event.
+    assert len(audit_events) == 1
+
+    audit_event = audit_events[0]
+
+    assert (
+            audit_event.event_type
+            == "action_rejected"
+    )
+
+    assert audit_event.actor_type == "human"
+
+    assert (
+            audit_event.business_request_id
+            == business_request.id
+    )
+
+    assert (
+            audit_event.agent_action_id
+            == action.id
+    )
+
+    assert (
+            audit_event.details["tool_name"]
+            == "escalate_incident"
+    )
+
+    assert (
+            audit_event.details["reason"]
+            == (
+                "Human operator rejected "
+                "the escalation."
+            )
+    )
+
 
 async def test_approve_execution_failure_keeps_action_pending(
         override_database,
@@ -372,6 +481,50 @@ async def test_approve_execution_failure_keeps_action_pending(
     assert (
             business_request.status
             == "awaiting_approval"
+    )
+
+    audit_result = await db_session.execute(
+        select(AuditEvent).where(
+            AuditEvent.agent_action_id
+            == action.id
+        )
+    )
+
+    audit_events = list(
+        audit_result.scalars().all()
+    )
+
+    assert len(audit_events) == 2
+
+    events_by_type = {
+        event.event_type: event
+        for event in audit_events
+    }
+
+    assert set(events_by_type) == {
+        "action_approved",
+        "tool_failed",
+    }
+
+    approved_event = events_by_type[
+        "action_approved"
+    ]
+
+    failed_event = events_by_type[
+        "tool_failed"
+    ]
+
+    assert approved_event.actor_type == "human"
+    assert failed_event.actor_type == "system"
+
+    assert (
+            failed_event.details["tool_name"]
+            == "escalate_incident"
+    )
+
+    assert (
+            failed_event.details["error_type"]
+            == "RuntimeError"
     )
 
 
