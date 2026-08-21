@@ -3,8 +3,10 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     DateTime,
     ForeignKey,
+    Identity,
     String,
     Uuid,
     func,
@@ -24,9 +26,17 @@ class AuditEvent(Base):
         default=uuid.uuid4,
     )
 
+    event_sequence: Mapped[int] = mapped_column(
+        BigInteger,
+        Identity(),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
     business_request_id: Mapped[
         uuid.UUID | None
-    ] = mapped_column(
+        ] = mapped_column(
         Uuid,
         ForeignKey(
             "business_requests.id",
@@ -59,7 +69,9 @@ class AuditEvent(Base):
         nullable=False,
     )
 
-    actor_id: Mapped[str | None] = mapped_column(
+    actor_id: Mapped[
+        str | None
+        ] = mapped_column(
         String(150),
         nullable=True,
     )

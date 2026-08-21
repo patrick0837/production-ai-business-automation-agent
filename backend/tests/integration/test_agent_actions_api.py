@@ -60,8 +60,8 @@ async def create_agent_action(
 
     db_session.add(action)
 
-    # Commit the setup savepoint so API rollback tests
-    # do not erase the fixture data.
+    # Commit setup so API rollback tests
+    # do not erase fixture data.
     await db_session.commit()
 
     await db_session.refresh(business_request)
@@ -147,9 +147,7 @@ async def test_approve_agent_action_executes_once(
                 "message": (
                     "Incident escalation completed."
                 ),
-                "severity": (
-                    arguments["severity"]
-                ),
+                "severity": arguments["severity"],
             },
         )
 
@@ -218,9 +216,13 @@ async def test_approve_agent_action_executes_once(
     )
 
     audit_result = await db_session.execute(
-        select(AuditEvent).where(
+        select(AuditEvent)
+        .where(
             AuditEvent.agent_action_id
             == action.id
+        )
+        .order_by(
+            AuditEvent.event_sequence
         )
     )
 
@@ -232,23 +234,31 @@ async def test_approve_agent_action_executes_once(
     # duplicate audit events.
     assert len(audit_events) == 2
 
-    events_by_type = {
-        event.event_type: event
-        for event in audit_events
-    }
+    assert [
+               event.event_type
+               for event in audit_events
+           ] == [
+               "action_approved",
+               "tool_executed",
+           ]
 
-    assert set(events_by_type) == {
-        "action_approved",
-        "tool_executed",
-    }
+    approved_event = audit_events[0]
+    executed_event = audit_events[1]
 
-    approved_event = events_by_type[
-        "action_approved"
-    ]
+    assert (
+            approved_event.event_sequence
+            is not None
+    )
 
-    executed_event = events_by_type[
-        "tool_executed"
-    ]
+    assert (
+            executed_event.event_sequence
+            is not None
+    )
+
+    assert (
+            approved_event.event_sequence
+            < executed_event.event_sequence
+    )
 
     assert approved_event.actor_type == "human"
     assert executed_event.actor_type == "system"
@@ -382,9 +392,13 @@ async def test_reject_agent_action_without_execution(
     )
 
     audit_result = await db_session.execute(
-        select(AuditEvent).where(
+        select(AuditEvent)
+        .where(
             AuditEvent.agent_action_id
             == action.id
+        )
+        .order_by(
+            AuditEvent.event_sequence
         )
     )
 
@@ -392,8 +406,8 @@ async def test_reject_agent_action_without_execution(
         audit_result.scalars().all()
     )
 
-    # Duplicate reject must not generate
-    # a duplicate audit event.
+    # Duplicate reject must not create
+    # another audit event.
     assert len(audit_events) == 1
 
     audit_event = audit_events[0]
@@ -403,6 +417,7 @@ async def test_reject_agent_action_without_execution(
             == "action_rejected"
     )
 
+    assert audit_event.event_sequence is not None
     assert audit_event.actor_type == "human"
 
     assert (
@@ -484,9 +499,13 @@ async def test_approve_execution_failure_keeps_action_pending(
     )
 
     audit_result = await db_session.execute(
-        select(AuditEvent).where(
+        select(AuditEvent)
+        .where(
             AuditEvent.agent_action_id
             == action.id
+        )
+        .order_by(
+            AuditEvent.event_sequence
         )
     )
 
@@ -496,23 +515,31 @@ async def test_approve_execution_failure_keeps_action_pending(
 
     assert len(audit_events) == 2
 
-    events_by_type = {
-        event.event_type: event
-        for event in audit_events
-    }
+    assert [
+               event.event_type
+               for event in audit_events
+           ] == [
+               "action_approved",
+               "tool_failed",
+           ]
 
-    assert set(events_by_type) == {
-        "action_approved",
-        "tool_failed",
-    }
+    approved_event = audit_events[0]
+    failed_event = audit_events[1]
 
-    approved_event = events_by_type[
-        "action_approved"
-    ]
+    assert (
+            approved_event.event_sequence
+            is not None
+    )
 
-    failed_event = events_by_type[
-        "tool_failed"
-    ]
+    assert (
+            failed_event.event_sequence
+            is not None
+    )
+
+    assert (
+            approved_event.event_sequence
+            < failed_event.event_sequence
+    )
 
     assert approved_event.actor_type == "human"
     assert failed_event.actor_type == "system"

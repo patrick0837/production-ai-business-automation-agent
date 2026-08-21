@@ -4,31 +4,21 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..agent.registry import (
-    execute_approved_tool,
-)
+from ..agent.registry import execute_approved_tool
 from ..models.agent_action import AgentAction
-from ..models.business_request import (
-    BusinessRequest,
-)
+from ..models.business_request import BusinessRequest
 from .audit import create_audit_event
 
 
-class AgentActionNotFoundError(
-    RuntimeError
-):
+class AgentActionNotFoundError(RuntimeError):
     pass
 
 
-class InvalidAgentActionStateError(
-    RuntimeError
-):
+class InvalidAgentActionStateError(RuntimeError):
     pass
 
 
-class AgentActionExecutionError(
-    RuntimeError
-):
+class AgentActionExecutionError(RuntimeError):
     pass
 
 
@@ -67,9 +57,7 @@ async def _lock_business_request(
         .with_for_update()
     )
 
-    business_request = (
-        result.scalar_one_or_none()
-    )
+    business_request = result.scalar_one_or_none()
 
     if business_request is None:
         raise RuntimeError(
@@ -84,13 +72,9 @@ async def _update_business_request_status(
         db: AsyncSession,
         business_request_id: uuid.UUID,
 ) -> None:
-    business_request = (
-        await _lock_business_request(
-            db=db,
-            business_request_id=(
-                business_request_id
-            ),
-        )
+    business_request = await _lock_business_request(
+        db=db,
+        business_request_id=business_request_id,
     )
 
     pending_count = await db.scalar(
@@ -105,9 +89,7 @@ async def _update_business_request_status(
     )
 
     if pending_count:
-        business_request.status = (
-            "awaiting_approval"
-        )
+        business_request.status = "awaiting_approval"
     else:
         business_request.status = "completed"
 
@@ -121,7 +103,7 @@ async def approve_agent_action(
         action_id=action_id,
     )
 
-    # Idempotent duplicate approve.
+    # Duplicate approve is idempotent.
     if action.status == "completed":
         return action
 
@@ -142,19 +124,25 @@ async def approve_agent_action(
             "human approval"
         )
 
-    db.add(
-        create_audit_event(
-            event_type="action_approved",
-            actor_type="human",
-            business_request_id=(
-                action.business_request_id
-            ),
-            agent_action_id=action.id,
-            details={
-                "tool_name": action.tool_name,
-            },
-        )
+    # Record the human approval first.
+    approved_event = create_audit_event(
+        event_type="action_approved",
+        actor_type="human",
+        business_request_id=(
+            action.business_request_id
+        ),
+        agent_action_id=action.id,
+        details={
+            "tool_name": action.tool_name,
+        },
     )
+
+    db.add(approved_event)
+
+    # Force PostgreSQL to INSERT this event now,
+    # assigning its event_sequence before any
+    # later audit event.
+    await db.flush()
 
     try:
         execution_result = await asyncio.to_thread(
@@ -164,25 +152,30 @@ async def approve_agent_action(
         )
 
     except Exception as exc:
-        db.add(
-            create_audit_event(
-                event_type="tool_failed",
-                actor_type="system",
-                business_request_id=(
-                    action.business_request_id
-                ),
-                agent_action_id=action.id,
-                details={
-                    "tool_name": action.tool_name,
-                    "error_type": (
-                        type(exc).__name__
-                    ),
-                },
-            )
+        failed_event = create_audit_event(
+            event_type="tool_failed",
+            actor_type="system",
+            business_request_id=(
+                action.business_request_id
+            ),
+            agent_action_id=action.id,
+            details={
+                "tool_name": action.tool_name,
+                "error_type": type(exc).__name__,
+            },
         )
 
-        # Persist the audit trail while leaving the
-        # action in pending_approval for a retry.
+        db.add(failed_event)
+
+        # Guarantees:
+        # action_approved.sequence
+        # <
+        # tool_failed.sequence
+        await db.flush()
+
+        # Persist the failed execution audit trail.
+        # AgentAction deliberately remains
+        # pending_approval so it can be retried.
         await db.commit()
 
         raise AgentActionExecutionError(
@@ -191,23 +184,26 @@ async def approve_agent_action(
         ) from exc
 
     if execution_result.status != "completed":
-        db.add(
-            create_audit_event(
-                event_type="tool_failed",
-                actor_type="system",
-                business_request_id=(
-                    action.business_request_id
+        failed_event = create_audit_event(
+            event_type="tool_failed",
+            actor_type="system",
+            business_request_id=(
+                action.business_request_id
+            ),
+            agent_action_id=action.id,
+            details={
+                "tool_name": action.tool_name,
+                "reason": (
+                    "Tool did not return "
+                    "completed status"
                 ),
-                agent_action_id=action.id,
-                details={
-                    "tool_name": action.tool_name,
-                    "reason": (
-                        "Tool did not return "
-                        "completed status"
-                    ),
-                },
-            )
+            },
         )
+
+        db.add(failed_event)
+
+        # Guarantees deterministic event ordering.
+        await db.flush()
 
         await db.commit()
 
@@ -219,21 +215,25 @@ async def approve_agent_action(
     action.status = "completed"
     action.result = execution_result.output
 
-    db.add(
-        create_audit_event(
-            event_type="tool_executed",
-            actor_type="system",
-            business_request_id=(
-                action.business_request_id
-            ),
-            agent_action_id=action.id,
-            details={
-                "tool_name": action.tool_name,
-                "result": execution_result.output,
-            },
-        )
+    executed_event = create_audit_event(
+        event_type="tool_executed",
+        actor_type="system",
+        business_request_id=(
+            action.business_request_id
+        ),
+        agent_action_id=action.id,
+        details={
+            "tool_name": action.tool_name,
+            "result": execution_result.output,
+        },
     )
 
+    db.add(executed_event)
+
+    # Guarantees:
+    # action_approved.sequence
+    # <
+    # tool_executed.sequence
     await db.flush()
 
     await _update_business_request_status(
@@ -259,7 +259,7 @@ async def reject_agent_action(
         action_id=action_id,
     )
 
-    # Idempotent duplicate reject.
+    # Duplicate reject is idempotent.
     if action.status == "rejected":
         return action
 
@@ -292,18 +292,19 @@ async def reject_agent_action(
     if reason:
         audit_details["reason"] = reason
 
-    db.add(
-        create_audit_event(
-            event_type="action_rejected",
-            actor_type="human",
-            business_request_id=(
-                action.business_request_id
-            ),
-            agent_action_id=action.id,
-            details=audit_details,
-        )
+    rejected_event = create_audit_event(
+        event_type="action_rejected",
+        actor_type="human",
+        business_request_id=(
+            action.business_request_id
+        ),
+        agent_action_id=action.id,
+        details=audit_details,
     )
 
+    db.add(rejected_event)
+
+    # Assign event_sequence before continuing.
     await db.flush()
 
     await _update_business_request_status(

@@ -100,6 +100,8 @@ def persist_agent_actions(
             )
         )
 
+        db.flush()
+
         if approval_required:
             db.add(
                 create_audit_event(
@@ -117,6 +119,7 @@ def persist_agent_actions(
                 )
             )
 
+            db.flush()
         else:
             db.add(
                 create_audit_event(
@@ -137,6 +140,7 @@ def persist_agent_actions(
                 )
             )
 
+            db.flush()
 
 @celery_app.task(
     bind=True,
