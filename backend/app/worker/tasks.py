@@ -2,6 +2,8 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from ..services.audit import create_audit_event
+
 from ..agent.schemas import AgentRunResult
 from ..db.worker_session import WorkerSessionLocal
 from ..models.agent_action import AgentAction
@@ -12,7 +14,6 @@ from .processing import (
     analyze_business_request,
     run_agent,
 )
-
 
 MAX_TASK_RETRIES = 3
 MAX_RETRY_DELAY_SECONDS = 30
@@ -39,7 +40,7 @@ def get_retry_countdown(retries: int) -> int:
     return min(
         2 ** retries,
         MAX_RETRY_DELAY_SECONDS,
-        )
+    )
 
 
 def persist_agent_actions(
@@ -72,6 +73,69 @@ def persist_agent_actions(
         )
 
         db.add(action)
+
+        # Flush so AgentAction receives its UUID
+        # before AuditEvent references it.
+        db.flush()
+
+        db.add(
+            create_audit_event(
+                event_type="agent_tool_requested",
+                actor_type="agent",
+                business_request_id=(
+                    business_request_id
+                ),
+                agent_action_id=action.id,
+                details={
+                    "tool_call_id": (
+                        execution.tool_call.id
+                    ),
+                    "tool_name": (
+                        execution.tool_call.name
+                    ),
+                    "arguments": (
+                        execution.tool_call.arguments
+                    ),
+                },
+            )
+        )
+
+        if approval_required:
+            db.add(
+                create_audit_event(
+                    event_type="approval_required",
+                    actor_type="system",
+                    business_request_id=(
+                        business_request_id
+                    ),
+                    agent_action_id=action.id,
+                    details={
+                        "tool_name": (
+                            execution.tool_call.name
+                        ),
+                    },
+                )
+            )
+
+        else:
+            db.add(
+                create_audit_event(
+                    event_type="tool_executed",
+                    actor_type="system",
+                    business_request_id=(
+                        business_request_id
+                    ),
+                    agent_action_id=action.id,
+                    details={
+                        "tool_name": (
+                            execution.tool_call.name
+                        ),
+                        "result": (
+                            execution.result.output
+                        ),
+                    },
+                )
+            )
 
 
 @celery_app.task(

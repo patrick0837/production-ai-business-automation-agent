@@ -7,9 +7,8 @@ from backend.app.agent.schemas import (
     AgentToolExecution,
     ToolExecutionResult,
 )
-from backend.app.models.agent_action import (
-    AgentAction,
-)
+from backend.app.models.agent_action import AgentAction
+from backend.app.models.audit_event import AuditEvent
 from backend.app.schemas.ai_analysis import (
     BusinessRequestAnalysis,
 )
@@ -36,6 +35,14 @@ class FakeSession:
 
     def add(self, value):
         self.added.append(value)
+
+    def flush(self):
+        for value in self.added:
+            if (
+                    isinstance(value, AgentAction)
+                    and value.id is None
+            ):
+                value.id = uuid.uuid4()
 
     def commit(self):
         pass
@@ -145,14 +152,17 @@ def test_transient_failure_retries_then_completes(
 
     assert business_request.category == "support"
     assert business_request.priority == "high"
+
     assert (
             business_request.intent
             == "enterprise_support"
     )
+
     assert (
             business_request.requires_human_approval
             is True
     )
+
     assert (
             business_request.recommended_action
             == "Escalate to support team."
@@ -370,14 +380,29 @@ def test_agent_approval_is_persisted_and_pauses_request(
 
     assert result.result["agent_action_count"] == 1
 
-    assert len(session.added) == 1
+    actions = [
+        value
+        for value in session.added
+        if isinstance(value, AgentAction)
+    ]
 
-    action = session.added[0]
+    audit_events = [
+        value
+        for value in session.added
+        if isinstance(value, AuditEvent)
+    ]
+
+    assert len(actions) == 1
+    assert len(audit_events) == 2
+
+    action = actions[0]
 
     assert isinstance(
         action,
         AgentAction,
     )
+
+    assert action.id is not None
 
     assert (
             action.business_request_id
@@ -392,7 +417,6 @@ def test_agent_approval_is_persisted_and_pauses_request(
     )
 
     assert action.status == "pending_approval"
-
     assert action.requires_approval is True
 
     assert (
@@ -401,3 +425,26 @@ def test_agent_approval_is_persisted_and_pauses_request(
     )
 
     assert action.result is None
+
+    event_types = {
+        event.event_type
+        for event in audit_events
+    }
+
+    assert event_types == {
+        "agent_tool_requested",
+        "approval_required",
+    }
+
+    for event in audit_events:
+        assert (
+                event.business_request_id
+                == uuid.UUID(request_id)
+        )
+
+        assert event.agent_action_id is not None
+
+        assert (
+                event.agent_action_id
+                == action.id
+        )
