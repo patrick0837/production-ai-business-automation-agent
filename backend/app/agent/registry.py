@@ -58,10 +58,13 @@ def get_tool_specs() -> list[dict[str, Any]]:
     ]
 
 
-def execute_registered_tool(
+def _get_validated_tool(
         name: str,
         arguments: dict[str, Any],
-) -> ToolExecutionResult:
+) -> tuple[
+    RegisteredTool,
+    BaseModel,
+]:
     try:
         tool = TOOL_REGISTRY[name]
     except KeyError as exc:
@@ -69,8 +72,24 @@ def execute_registered_tool(
             f"Unknown agent tool: {name}"
         ) from exc
 
-    validated_arguments = tool.input_model.model_validate(
-        arguments
+    validated_arguments = (
+        tool.input_model.model_validate(
+            arguments
+        )
+    )
+
+    return tool, validated_arguments
+
+
+def execute_registered_tool(
+        name: str,
+        arguments: dict[str, Any],
+) -> ToolExecutionResult:
+    tool, validated_arguments = (
+        _get_validated_tool(
+            name=name,
+            arguments=arguments,
+        )
     )
 
     if tool.requires_approval:
@@ -83,6 +102,22 @@ def execute_registered_tool(
                 ),
             },
         )
+
+    return tool.handler(
+        validated_arguments
+    )
+
+
+def execute_approved_tool(
+        name: str,
+        arguments: dict[str, Any],
+) -> ToolExecutionResult:
+    tool, validated_arguments = (
+        _get_validated_tool(
+            name=name,
+            arguments=arguments,
+        )
+    )
 
     return tool.handler(
         validated_arguments
