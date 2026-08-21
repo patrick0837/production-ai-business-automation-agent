@@ -94,9 +94,11 @@ TOOL_REGISTRY: dict[
     "escalate_incident": RegisteredTool(
         name="escalate_incident",
         description=(
-            "Escalate a critical production "
-            "incident to the human "
-            "operations team."
+            "Escalate a critical incident to the human "
+            "operations team. Use this tool when the "
+            "request or retrieved company policy requires "
+            "an incident to be escalated. This is a "
+            "high-impact action and requires human approval."
         ),
         input_model=(
             EscalateIncidentInput

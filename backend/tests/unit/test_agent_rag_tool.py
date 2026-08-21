@@ -248,3 +248,131 @@ async def test_agent_uses_rag_tool_and_continues():
     )
 
     assert provider.calls == 2
+
+class FakeRagThenEscalationProvider:
+    def __init__(self):
+            self.calls = 0
+
+    async def generate_agent_response(
+            self,
+            *,
+            messages,
+            tools,
+    ):
+        self.calls += 1
+
+        if self.calls == 1:
+            return AgentModelResponse(
+                content="",
+                tool_calls=[
+                    AgentToolCall(
+                        id="tool-call-rag",
+                        name=(
+                            "search_knowledge_base"
+                        ),
+                        arguments={
+                            "query": (
+                                "security-related "
+                                "service outage policy"
+                            ),
+                            "top_k": 1,
+                        },
+                    )
+                ],
+            )
+
+        return AgentModelResponse(
+            content=(
+                "The retrieved policy requires "
+                "incident escalation."
+            ),
+            tool_calls=[
+                AgentToolCall(
+                    id="tool-call-escalate",
+                    name="escalate_incident",
+                    arguments={
+                        "reason": (
+                            "Customer reported a "
+                            "security-related "
+                            "service outage."
+                        ),
+                        "severity": "urgent",
+                    },
+                )
+            ],
+        )
+
+
+async def test_agent_uses_rag_then_requests_approval():
+    provider = (
+        FakeRagThenEscalationProvider()
+    )
+
+    context = AgentExecutionContext(
+        knowledge_searcher=(
+            FakeKnowledgeSearcher()
+        )
+    )
+
+    service = AgentService(
+        provider=provider,
+        max_steps=5,
+    )
+
+    result = await service.run(
+        source="customer-support",
+        content=(
+            "A customer reports a "
+            "security-related service outage. "
+            "Use company policy and take "
+            "the required action."
+        ),
+        context=context,
+    )
+
+    assert (
+            result.status
+            == "approval_required"
+    )
+
+    assert (
+            len(result.tool_executions)
+            == 2
+    )
+
+    first_execution = (
+        result.tool_executions[0]
+    )
+
+    second_execution = (
+        result.tool_executions[1]
+    )
+
+    assert (
+            first_execution.tool_call.name
+            == "search_knowledge_base"
+    )
+
+    assert (
+            first_execution.result.status
+            == "completed"
+    )
+
+    assert (
+            second_execution.tool_call.name
+            == "escalate_incident"
+    )
+
+    assert (
+            second_execution.result.status
+            == "approval_required"
+    )
+
+    assert (
+            second_execution
+            .result
+            .output["arguments"]["severity"]
+            == "urgent"
+    )
+
+    assert provider.calls == 2
