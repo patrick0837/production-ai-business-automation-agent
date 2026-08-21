@@ -35,3 +35,24 @@ class ToolExecutionResult(BaseModel):
     output: dict[str, Any] = Field(
         default_factory=dict,
     )
+
+
+class AgentToolExecution(BaseModel):
+    tool_call: AgentToolCall
+    result: ToolExecutionResult
+
+
+class AgentRunResult(BaseModel):
+    status: Literal[
+        "completed",
+        "approval_required",
+        "max_steps_exceeded",
+    ]
+
+    content: str = ""
+
+    tool_executions: list[
+        AgentToolExecution
+    ] = Field(
+        default_factory=list,
+    )
