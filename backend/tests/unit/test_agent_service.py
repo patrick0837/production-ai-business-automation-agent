@@ -150,9 +150,10 @@ async def test_agent_continues_after_completed_tool(
         ]
     )
 
-    def fake_execute_tool(
+    async def fake_execute_tool(
             name,
             arguments,
+            context=None,
     ):
         return ToolExecutionResult(
             tool_name=name,
@@ -164,7 +165,7 @@ async def test_agent_continues_after_completed_tool(
 
     monkeypatch.setattr(
         agent_service,
-        "execute_registered_tool",
+        "execute_registered_tool_async",
         fake_execute_tool,
     )
 
@@ -240,9 +241,10 @@ async def test_agent_stops_after_max_steps(
         ]
     )
 
-    def fake_execute_tool(
+    async def fake_execute_tool(
             name,
             arguments,
+            context=None,
     ):
         return ToolExecutionResult(
             tool_name=name,
@@ -254,7 +256,7 @@ async def test_agent_stops_after_max_steps(
 
     monkeypatch.setattr(
         agent_service,
-        "execute_registered_tool",
+        "execute_registered_tool_async",
         fake_execute_tool,
     )
 

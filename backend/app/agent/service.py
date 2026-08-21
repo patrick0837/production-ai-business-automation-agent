@@ -3,8 +3,9 @@ from typing import Any
 
 from ..ai.factory import get_ai_provider
 from ..ai.provider import AIProvider
+from .context import AgentExecutionContext
 from .registry import (
-    execute_registered_tool,
+    execute_registered_tool_async,
     get_tool_specs,
 )
 from .schemas import (
@@ -22,8 +23,13 @@ available tools when an action is required.
 
 Rules:
 - Use tools when they are appropriate.
-- Never claim that an action was completed unless a tool
-  result confirms it.
+- Use search_knowledge_base when a request depends on
+  internal company policies, procedures, or other
+  business-specific knowledge.
+- Treat retrieved knowledge as evidence and do not
+  invent internal policies that were not retrieved.
+- Never claim that an action was completed unless a
+  tool result confirms it.
 - Do not invent tool results.
 - High-impact actions may require human approval.
 - After receiving a tool result, decide whether another
@@ -54,8 +60,13 @@ class AgentService:
             self,
             source: str,
             content: str,
+            context: (
+                    AgentExecutionContext | None
+            ) = None,
     ) -> AgentRunResult:
-        messages: list[dict[str, Any]] = [
+        messages: list[
+            dict[str, Any]
+        ] = [
             {
                 "role": "system",
                 "content": SYSTEM_PROMPT,
@@ -69,7 +80,9 @@ class AgentService:
             },
         ]
 
-        tools = get_tool_specs()
+        tools = get_tool_specs(
+            context=context
+        )
 
         executions: list[
             AgentToolExecution
@@ -77,7 +90,9 @@ class AgentService:
 
         last_content = ""
 
-        for _ in range(self.max_steps):
+        for _ in range(
+                self.max_steps
+        ):
             response = (
                 await self.provider
                 .generate_agent_response(
@@ -86,13 +101,17 @@ class AgentService:
                 )
             )
 
-            last_content = response.content
+            last_content = (
+                response.content
+            )
 
             if not response.tool_calls:
                 return AgentRunResult(
                     status="completed",
                     content=response.content,
-                    tool_executions=executions,
+                    tool_executions=(
+                        executions
+                    ),
                 )
 
             messages.append(
@@ -101,27 +120,44 @@ class AgentService:
                 )
             )
 
-            for tool_call in response.tool_calls:
-                result = execute_registered_tool(
-                    name=tool_call.name,
-                    arguments=tool_call.arguments,
+            for tool_call in (
+                    response.tool_calls
+            ):
+                result = await (
+                    execute_registered_tool_async(
+                        name=tool_call.name,
+                        arguments=(
+                            tool_call.arguments
+                        ),
+                        context=context,
+                    )
                 )
 
-                execution = AgentToolExecution(
-                    tool_call=tool_call,
-                    result=result,
+                execution = (
+                    AgentToolExecution(
+                        tool_call=tool_call,
+                        result=result,
+                    )
                 )
 
-                executions.append(execution)
+                executions.append(
+                    execution
+                )
 
                 if (
                         result.status
                         == "approval_required"
                 ):
                     return AgentRunResult(
-                        status="approval_required",
-                        content=response.content,
-                        tool_executions=executions,
+                        status=(
+                            "approval_required"
+                        ),
+                        content=(
+                            response.content
+                        ),
+                        tool_executions=(
+                            executions
+                        ),
                     )
 
                 messages.append(
@@ -130,10 +166,12 @@ class AgentService:
                         "tool_name": (
                             tool_call.name
                         ),
-                        "content": json.dumps(
-                            result.output,
-                            ensure_ascii=False,
-                            default=str,
+                        "content": (
+                            json.dumps(
+                                result.output,
+                                ensure_ascii=False,
+                                default=str,
+                            )
                         ),
                     }
                 )
@@ -150,15 +188,19 @@ class AgentService:
     ) -> dict[str, Any]:
         tool_calls = []
 
-        for index, tool_call in enumerate(
-                response.tool_calls
+        for index, tool_call in (
+                enumerate(
+                    response.tool_calls
+                )
         ):
             tool_calls.append(
                 {
                     "type": "function",
                     "function": {
                         "index": index,
-                        "name": tool_call.name,
+                        "name": (
+                            tool_call.name
+                        ),
                         "arguments": (
                             tool_call.arguments
                         ),
