@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +36,7 @@ async def mark_business_request_queued(
 
     return business_request
 
+
 async def mark_business_request_failed(
         db: AsyncSession,
         business_request: BusinessRequest,
@@ -44,6 +47,17 @@ async def mark_business_request_failed(
     await db.refresh(business_request)
 
     return business_request
+
+
+async def get_business_request_by_id(
+        db: AsyncSession,
+        request_id: uuid.UUID,
+) -> BusinessRequest | None:
+    return await db.get(
+        BusinessRequest,
+        request_id,
+    )
+
 
 async def list_business_requests(
         db: AsyncSession,

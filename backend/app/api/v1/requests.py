@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -13,6 +15,7 @@ from ...models.business_request import (
     BusinessRequest,
 )
 from ...repositories.business_request import (
+    get_business_request_by_id,
     list_business_requests,
 )
 from ...schemas.business_request import (
@@ -82,3 +85,27 @@ async def get_requests(
     return await list_business_requests(
         db
     )
+
+
+@router.get(
+    "/{request_id}",
+    response_model=BusinessRequestRead,
+)
+async def get_request(
+        request_id: uuid.UUID,
+        db: AsyncSession = Depends(get_db),
+) -> BusinessRequest:
+    business_request = (
+        await get_business_request_by_id(
+            db=db,
+            request_id=request_id,
+        )
+    )
+
+    if business_request is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Business request not found",
+        )
+
+    return business_request
