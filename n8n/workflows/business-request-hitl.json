@@ -6,8 +6,8 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        -1040,
-        -336
+        -1104,
+        -448
       ],
       "id": "d68572b9-27e0-446d-9ce4-bf288a6385e8",
       "name": "Manual Trigger"
@@ -26,21 +26,19 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        -896,
-        -336
+        -976,
+        -448
       ],
       "id": "356a80b1-0b3f-4af2-8ed0-d9d1152a2d2e",
       "name": "Submit Business Request"
     },
     {
-      "parameters": {
-        "amount": 20
-      },
+      "parameters": {},
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        -768,
-        -336
+        -864,
+        -256
       ],
       "id": "675ce1d5-231f-4c55-8aef-1409b15d7104",
       "name": "Wait for Processing",
@@ -54,45 +52,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        -640,
-        -336
+        -720,
+        -416
       ],
       "id": "78cb45df-6c1c-4fdd-a4c7-b9a1f683a8bf",
       "name": "Get Request Status"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "65ece7b7-a476-4460-abf3-4dd2c0491fef",
-              "leftValue": "={{ $json.status }}",
-              "rightValue": "awaiting_approval",
-              "operator": {
-                "type": "string",
-                "operation": "equals",
-                "name": "filter.operator.equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        -512,
-        -336
-      ],
-      "id": "05945f36-8f51-447f-97c9-a32a69426748",
-      "name": "Approval Required?"
     },
     {
       "parameters": {
@@ -115,8 +79,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        -368,
-        -464
+        -400,
+        -432
       ],
       "id": "73145fff-df14-429b-a6d1-2ceb4067027c",
       "name": "Get Pending Agent Action"
@@ -168,8 +132,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -224,
-        -432
+        -240,
+        -464
       ],
       "id": "e87342ed-f06d-48a2-95b9-c7e1dc87144e",
       "name": "Prepare Approval Data"
@@ -246,6 +210,215 @@
       ],
       "id": "56c5a4d2-5700-4a3f-9cc5-4356bfd67ced",
       "name": "Reject Agent Action"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "65ece7b7-a476-4460-abf3-4dd2c0491fef",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "awaiting_approval",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -560,
+        -416
+      ],
+      "id": "05945f36-8f51-447f-97c9-a32a69426748",
+      "name": "Awaiting Approval?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "89f50f59-edf4-4a6a-b467-ba3650d25c76",
+              "leftValue": "={{ ['received', 'queued', 'processing', 'retrying'].includes($json.status) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -640,
+        -192
+      ],
+      "id": "26f9f41a-cf02-4b10-93a1-0464588c436d",
+      "name": "Processing?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "486225f3-7dac-4db0-a2ef-c1559eeb03e0",
+              "leftValue": "={{ $json.status === 'completed' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -432,
+        32
+      ],
+      "id": "c526ca49-e346-437e-8a05-d059efdba8f9",
+      "name": "Completed?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8d43f0b8-ae0e-4d7e-a198-c27cfdf4bbe7",
+              "leftValue": "={{ $json.status === 'failed' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -176,
+        48
+      ],
+      "id": "7ea84977-1fb5-4b58-b5ad-f4ca86ca8704",
+      "name": "Failed?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0650f524-199a-499a-899f-f4811c592f13",
+              "leftValue": "={{ Date.now() - new Date($json.created_at).getTime() > 120000 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -384,
+        -224
+      ],
+      "id": "a521ae05-2c83-4e08-919d-3fbdaa6b1b66",
+      "name": "Timed Out?"
+    },
+    {
+      "parameters": {
+        "errorMessage": "Business request processing timed out after 120 seconds."
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        -288
+      ],
+      "id": "d54e67cf-7f7b-4bec-837b-cf5da965145a",
+      "name": "Processing Timeout"
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ 'Business request failed. Request ID: ' + $json.id }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        16,
+        -128
+      ],
+      "id": "e8b503f0-4a42-454c-b980-ca1d8c421ffc",
+      "name": "Processing Failed"
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ 'Unexpected business request status: ' + ($json.status ?? 'unknown') + '. Request ID: ' + $json.id }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        32,
+        80
+      ],
+      "id": "b0cd88ff-4e02-4e14-a712-5f1a490a6d56",
+      "name": "Unexpected Request Status"
     }
   ],
   "pinData": {},
@@ -287,18 +460,7 @@
       "main": [
         [
           {
-            "node": "Approval Required?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Approval Required?": {
-      "main": [
-        [
-          {
-            "node": "Get Pending Agent Action",
+            "node": "Awaiting Approval?",
             "type": "main",
             "index": 0
           }
@@ -355,6 +517,90 @@
           }
         ]
       ]
+    },
+    "Awaiting Approval?": {
+      "main": [
+        [
+          {
+            "node": "Get Pending Agent Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Processing?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processing?": {
+      "main": [
+        [
+          {
+            "node": "Timed Out?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Completed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Completed?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timed Out?": {
+      "main": [
+        [
+          {
+            "node": "Processing Timeout",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait for Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed?": {
+      "main": [
+        [
+          {
+            "node": "Processing Failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unexpected Request Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -363,7 +609,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "e9c7b6cf-942e-4ea8-93c6-6453308f629f",
+  "versionId": "ddce37a5-4516-46e7-9482-47f2b6c497e9",
   "nodeGroups": [],
   "id": "x3XiIhuqZNBe1Axr",
   "tags": []
