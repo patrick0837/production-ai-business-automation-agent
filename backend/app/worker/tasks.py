@@ -1,19 +1,25 @@
+import logging
+import time
 import uuid
 
 from sqlalchemy.orm import Session
 
-from ..services.audit import create_audit_event
-
 from ..agent.schemas import AgentRunResult
 from ..db.worker_session import WorkerSessionLocal
 from ..models.agent_action import AgentAction
-from ..models.business_request import BusinessRequest
+from ..models.business_request import (
+    BusinessRequest,
+)
+from ..services.audit import create_audit_event
 from .celery_app import celery_app
 from .exceptions import TransientProcessingError
 from .processing import (
     analyze_business_request,
     run_agent,
 )
+
+
+logger = logging.getLogger(__name__)
 
 MAX_TASK_RETRIES = 3
 MAX_RETRY_DELAY_SECONDS = 30
@@ -36,11 +42,13 @@ def get_business_request(
     return business_request
 
 
-def get_retry_countdown(retries: int) -> int:
+def get_retry_countdown(
+        retries: int,
+) -> int:
     return min(
         2 ** retries,
         MAX_RETRY_DELAY_SECONDS,
-    )
+        )
 
 
 def persist_agent_actions(
@@ -120,6 +128,7 @@ def persist_agent_actions(
             )
 
             db.flush()
+
         else:
             db.add(
                 create_audit_event(
@@ -142,6 +151,7 @@ def persist_agent_actions(
 
             db.flush()
 
+
 @celery_app.task(
     bind=True,
     name="process_business_request",
@@ -154,6 +164,24 @@ def process_business_request(
         source: str,
         content: str,
 ) -> dict:
+    started_at = time.perf_counter()
+
+    log_context = {
+        "business_request_id": request_id,
+        "celery_task_id": self.request.id,
+        "attempt": self.request.retries + 1,
+    }
+
+    logger.info(
+        "Business request processing started",
+        extra={
+            "event": (
+                "business_request_processing_started"
+            ),
+            **log_context,
+        },
+    )
+
     with WorkerSessionLocal() as db:
         try:
             business_request = get_business_request(
@@ -174,6 +202,20 @@ def process_business_request(
                 "completed",
                 "awaiting_approval",
             }:
+                logger.info(
+                    "Business request already processed",
+                    extra={
+                        "event": (
+                            "business_request_"
+                            "idempotent_replay"
+                        ),
+                        "request_status": (
+                            business_request.status
+                        ),
+                        **log_context,
+                    },
+                )
+
                 return {
                     "request_id": request_id,
                     "source": source,
@@ -198,9 +240,29 @@ def process_business_request(
                 content=content,
             )
 
-            business_request.category = analysis.category
-            business_request.priority = analysis.priority
-            business_request.intent = analysis.intent
+            logger.info(
+                "Business request analysis completed",
+                extra={
+                    "event": (
+                        "business_request_"
+                        "analysis_completed"
+                    ),
+                    "category": analysis.category,
+                    "priority": analysis.priority,
+                    "intent": analysis.intent,
+                    **log_context,
+                },
+            )
+
+            business_request.category = (
+                analysis.category
+            )
+            business_request.priority = (
+                analysis.priority
+            )
+            business_request.intent = (
+                analysis.intent
+            )
             business_request.requires_human_approval = (
                 analysis.requires_human_approval
             )
@@ -211,6 +273,22 @@ def process_business_request(
             agent_result = run_agent(
                 source=source,
                 content=content,
+            )
+
+            logger.info(
+                "Business request agent completed",
+                extra={
+                    "event": (
+                        "business_request_agent_completed"
+                    ),
+                    "agent_status": (
+                        agent_result.status
+                    ),
+                    "agent_action_count": len(
+                        agent_result.tool_executions
+                    ),
+                    **log_context,
+                },
             )
 
             persist_agent_actions(
@@ -230,6 +308,36 @@ def process_business_request(
                 )
 
                 db.commit()
+
+                duration_ms = round(
+                    (
+                            time.perf_counter()
+                            - started_at
+                    )
+                    * 1000,
+                    2,
+                    )
+
+                logger.info(
+                    "Business request awaiting approval",
+                    extra={
+                        "event": (
+                            "business_request_"
+                            "awaiting_approval"
+                        ),
+                        "request_status": (
+                            "awaiting_approval"
+                        ),
+                        "agent_status": (
+                            agent_result.status
+                        ),
+                        "agent_action_count": len(
+                            agent_result.tool_executions
+                        ),
+                        "duration_ms": duration_ms,
+                        **log_context,
+                    },
+                )
 
                 return {
                     "request_id": request_id,
@@ -267,6 +375,34 @@ def process_business_request(
             business_request.status = "completed"
             db.commit()
 
+            duration_ms = round(
+                (
+                        time.perf_counter()
+                        - started_at
+                )
+                * 1000,
+                2,
+                )
+
+            logger.info(
+                "Business request processing completed",
+                extra={
+                    "event": (
+                        "business_request_"
+                        "processing_completed"
+                    ),
+                    "request_status": "completed",
+                    "agent_status": (
+                        agent_result.status
+                    ),
+                    "agent_action_count": len(
+                        agent_result.tool_executions
+                    ),
+                    "duration_ms": duration_ms,
+                    **log_context,
+                },
+            )
+
             return {
                 "request_id": request_id,
                 "source": source,
@@ -294,9 +430,35 @@ def process_business_request(
                 request_id,
             )
 
-            if self.request.retries >= MAX_TASK_RETRIES:
+            if (
+                    self.request.retries
+                    >= MAX_TASK_RETRIES
+            ):
                 business_request.status = "failed"
                 db.commit()
+
+                duration_ms = round(
+                    (
+                            time.perf_counter()
+                            - started_at
+                    )
+                    * 1000,
+                    2,
+                    )
+
+                logger.exception(
+                    "Business request processing "
+                    "failed after retries",
+                    extra={
+                        "event": (
+                            "business_request_"
+                            "processing_failed"
+                        ),
+                        "request_status": "failed",
+                        "duration_ms": duration_ms,
+                        **log_context,
+                    },
+                )
 
                 raise
 
@@ -305,6 +467,18 @@ def process_business_request(
 
             countdown = get_retry_countdown(
                 self.request.retries
+            )
+
+            logger.warning(
+                "Business request processing retrying",
+                extra={
+                    "event": (
+                        "business_request_retrying"
+                    ),
+                    "request_status": "retrying",
+                    "countdown_seconds": countdown,
+                    **log_context,
+                },
             )
 
             raise self.retry(
@@ -316,9 +490,11 @@ def process_business_request(
             db.rollback()
 
             try:
-                business_request = get_business_request(
-                    db,
-                    request_id,
+                business_request = (
+                    get_business_request(
+                        db,
+                        request_id,
+                    )
                 )
 
                 business_request.status = "failed"
@@ -326,5 +502,39 @@ def process_business_request(
 
             except Exception:
                 db.rollback()
+
+                logger.exception(
+                    "Failed to persist business "
+                    "request failure status",
+                    extra={
+                        "event": (
+                            "business_request_"
+                            "failure_persistence_failed"
+                        ),
+                        **log_context,
+                    },
+                )
+
+            duration_ms = round(
+                (
+                        time.perf_counter()
+                        - started_at
+                )
+                * 1000,
+                2,
+                )
+
+            logger.exception(
+                "Business request processing failed",
+                extra={
+                    "event": (
+                        "business_request_"
+                        "processing_failed"
+                    ),
+                    "request_status": "failed",
+                    "duration_ms": duration_ms,
+                    **log_context,
+                },
+            )
 
             raise

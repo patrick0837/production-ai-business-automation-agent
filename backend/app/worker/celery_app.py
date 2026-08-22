@@ -1,9 +1,14 @@
 from celery import Celery
 
 from ..core.config import get_settings
+from ..core.logging_config import (
+    configure_logging,
+)
 
 
 settings = get_settings()
+
+configure_logging(settings.log_level)
 
 celery_app = Celery(
     "automation_agent",
@@ -23,4 +28,5 @@ celery_app.conf.update(
     task_track_started=True,
     broker_connection_retry_on_startup=True,
     worker_deduplicate_successful_tasks=True,
+    worker_hijack_root_logger=False,
 )
