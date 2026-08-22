@@ -1,0 +1,204 @@
+name: portfolio3-aws
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg17
+
+    environment:
+      POSTGRES_DB: automation_agent
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    restart: unless-stopped
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d automation_agent",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8.2-alpine
+
+    volumes:
+      - redis_data:/data
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  migration:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+
+    command: ["alembic", "upgrade", "head"]
+
+    environment:
+      ENVIRONMENT: production
+
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD}@postgres:5432/automation_agent
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+
+    command:
+      [
+        "uvicorn",
+        "backend.app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+
+    environment:
+      APP_NAME: Production-Ready AI Business Automation Agent
+      APP_VERSION: 0.1.0
+      ENVIRONMENT: production
+      LOG_LEVEL: INFO
+
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD}@postgres:5432/automation_agent
+
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+
+      AI_PROVIDER: ollama
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen3:4b-instruct
+
+      EMBEDDING_PROVIDER: ollama
+      OLLAMA_EMBEDDING_MODEL: nomic-embed-text:v1.5
+      EMBEDDING_DIMENSIONS: 768
+
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:?WEBHOOK_SECRET is required}
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: INFO
+
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD}@postgres:5432/automation_agent
+
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+
+      AI_PROVIDER: ollama
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen3:4b-instruct
+
+      EMBEDDING_PROVIDER: ollama
+      OLLAMA_EMBEDDING_MODEL: nomic-embed-text:v1.5
+      EMBEDDING_DIMENSIONS: 768
+
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:?WEBHOOK_SECRET is required}
+
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n:2.35.7
+
+    environment:
+      N8N_HOST: 0.0.0.0
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?N8N_ENCRYPTION_KEY is required}
+      N8N_SECURE_COOKIE: "false"
+
+      GENERIC_TIMEZONE: Europe/Dublin
+      TZ: Europe/Dublin
+
+      BACKEND_BASE_URL: http://api:8000
+      BACKEND_WEBHOOK_SECRET: ${WEBHOOK_SECRET:?WEBHOOK_SECRET is required}
+
+    ports:
+      - "5678:5678"
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+    depends_on:
+      api:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+
+    environment:
+      NODE_ENV: production
+      BACKEND_BASE_URL: http://api:8000
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      api:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_data:
