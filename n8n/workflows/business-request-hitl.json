@@ -1,0 +1,370 @@
+{
+  "name": "Business Request HITL Orchestration",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        -336
+      ],
+      "id": "d68572b9-27e0-446d-9ce4-bf288a6385e8",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/webhooks/business-requests",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"source\": \"n8n-e2e\",\n  \"content\": \"A customer reports a security-related service outage. Use internal company policy and take the appropriate required action.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -896,
+        -336
+      ],
+      "id": "356a80b1-0b3f-4af2-8ed0-d9d1152a2d2e",
+      "name": "Submit Business Request"
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -768,
+        -336
+      ],
+      "id": "675ce1d5-231f-4c55-8aef-1409b15d7104",
+      "name": "Wait for Processing",
+      "webhookId": "b762aa9b-9eae-41f3-a030-d2a221146b7e"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'http://host.docker.internal:8000/api/v1/requests/' + $json.id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -640,
+        -336
+      ],
+      "id": "78cb45df-6c1c-4fdd-a4c7-b9a1f683a8bf",
+      "name": "Get Request Status"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "65ece7b7-a476-4460-abf3-4dd2c0491fef",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "awaiting_approval",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -512,
+        -336
+      ],
+      "id": "05945f36-8f51-447f-97c9-a32a69426748",
+      "name": "Approval Required?"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/api/v1/agent-actions",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "pending_approval"
+            },
+            {
+              "name": "business_request_id",
+              "value": "={{ $json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -368,
+        -464
+      ],
+      "id": "73145fff-df14-429b-a6d1-2ceb4067027c",
+      "name": "Get Pending Agent Action"
+    },
+    {
+      "parameters": {
+        "resume": "form",
+        "formTitle": "Human Approval Required",
+        "formDescription": "={{\n  'Tool: ' + $json.tool_name +\n  '\\nSeverity: ' + $json.approval_severity +\n  '\\nReason: ' + $json.approval_reason\n}}",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Decision",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Approve"
+                  },
+                  {
+                    "option": "Reject"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Rejection Reason",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -96,
+        -432
+      ],
+      "id": "e44e1163-a80c-4e8b-b238-fc9fb0c11ea5",
+      "name": "Human Approval",
+      "webhookId": "8d5c32e4-247b-45a2-93b3-8ab6a1d47532"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nreturn [\n  {\n    json: {\n      action_id: item.id,\n      business_request_id: item.business_request_id,\n      tool_name: item.tool_name,\n      approval_reason: item.arguments?.reason ?? '',\n      approval_severity: item.arguments?.severity ?? '',\n      action_status: item.status,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        -432
+      ],
+      "id": "e87342ed-f06d-48a2-95b9-c7e1dc87144e",
+      "name": "Prepare Approval Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f6999500-1c16-48ea-b9e4-91d08e702ae9",
+              "leftValue": "={{ $json.Decision === 'Approve' }}",
+              "rightValue": "Approve",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        32,
+        -432
+      ],
+      "id": "3c429c79-c3be-4bab-9176-abba6126b06a",
+      "name": "Approved?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://host.docker.internal:8000/api/v1/agent-actions/' + $('Prepare Approval Data').first().json.action_id + '/approve' }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        192,
+        -512
+      ],
+      "id": "a0e6e2d9-0298-4c17-9226-539427c1e68a",
+      "name": "Approve Agent Action"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://host.docker.internal:8000/api/v1/agent-actions/' + $('Prepare Approval Data').first().json.action_id + '/reject' }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "reason",
+              "value": "={{ $json['Rejection Reason'] || 'Rejected by human operator via n8n' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        208,
+        -336
+      ],
+      "id": "56c5a4d2-5700-4a3f-9cc5-4356bfd67ced",
+      "name": "Reject Agent Action"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Submit Business Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit Business Request": {
+      "main": [
+        [
+          {
+            "node": "Wait for Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Processing": {
+      "main": [
+        [
+          {
+            "node": "Get Request Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Request Status": {
+      "main": [
+        [
+          {
+            "node": "Approval Required?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Required?": {
+      "main": [
+        [
+          {
+            "node": "Get Pending Agent Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pending Agent Action": {
+      "main": [
+        [
+          {
+            "node": "Prepare Approval Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Approval Data": {
+      "main": [
+        [
+          {
+            "node": "Human Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human Approval": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Approve Agent Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject Agent Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "e9c7b6cf-942e-4ea8-93c6-6453308f629f",
+  "nodeGroups": [],
+  "id": "x3XiIhuqZNBe1Axr",
+  "tags": []
+}
