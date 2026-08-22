@@ -119,6 +119,65 @@ async def test_list_pending_agent_actions(
     )
 
 
+async def test_filter_pending_agent_actions_by_business_request(
+        override_database,
+        db_session,
+):
+    target_request, target_action = (
+        await create_agent_action(
+            db_session,
+            action_status="pending_approval",
+        )
+    )
+
+    await create_agent_action(
+        db_session,
+        action_status="pending_approval",
+    )
+
+    await create_agent_action(
+        db_session,
+        action_status="completed",
+    )
+
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+    ) as client:
+        response = await client.get(
+            "/api/v1/agent-actions",
+            params={
+                "status": "pending_approval",
+                "business_request_id": str(
+                    target_request.id
+                ),
+            },
+        )
+
+    assert response.status_code == 200
+
+    actions = response.json()
+
+    assert len(actions) == 1
+
+    assert (
+            actions[0]["id"]
+            == str(target_action.id)
+    )
+
+    assert (
+            actions[0]["status"]
+            == "pending_approval"
+    )
+
+    assert (
+            actions[0]["tool_name"]
+            == "escalate_incident"
+    )
+
+
 async def test_approve_agent_action_executes_once(
         override_database,
         db_session,

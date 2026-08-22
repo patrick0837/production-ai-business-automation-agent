@@ -40,6 +40,9 @@ async def get_agent_actions(
             default=None,
             alias="status",
         ),
+        business_request_id: uuid.UUID | None = Query(
+            default=None,
+        ),
         db: AsyncSession = Depends(get_db),
 ) -> list[AgentAction]:
     statement = (
@@ -53,6 +56,12 @@ async def get_agent_actions(
         statement = statement.where(
             AgentAction.status
             == action_status
+        )
+
+    if business_request_id is not None:
+        statement = statement.where(
+            AgentAction.business_request_id
+            == business_request_id
         )
 
     result = await db.execute(statement)
