@@ -100,6 +100,12 @@ This workflow orchestrates business request processing, polling, timeout handlin
 
 ![n8n Human-in-the-Loop Workflow](docs/images/n8n-hitl-workflow.png)
 
+## AWS RAG and Audit Evidence
+
+A validated AWS end-to-end run shows the agent retrieving the relevant internal incident-response policy, requesting a protected escalation action, waiting for human approval, and recording the complete ordered audit trail.
+
+![AWS RAG and Audit Evidence](docs/images/aws-rag-audit-evidence.png)
+
 ## Core Components
 
 ### FastAPI Backend
