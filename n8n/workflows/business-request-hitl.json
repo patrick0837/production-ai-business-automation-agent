@@ -6,30 +6,30 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        -1104,
-        -448
+        -1296,
+        64
       ],
-      "id": "d68572b9-27e0-446d-9ce4-bf288a6385e8",
+      "id": "9abdf8ab-5d7c-4074-a4b9-22574c80d9be",
       "name": "Manual Trigger"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8000/api/v1/webhooks/business-requests",
+        "url": "http://api:8000/api/v1/webhooks/business-requests",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"source\": \"n8n-e2e\",\n  \"content\": \"A customer reports a security-related service outage. Use internal company policy and take the appropriate required action.\"\n}",
+        "jsonBody": "{\n  \"source\": \"n8n-e2e\",\n  \"content\": \"Urgent: a production customer reports suspected account takeover and unauthorized access. Assess the incident and escalate it to operations immediately.\"\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        -976,
-        -448
+        -1168,
+        64
       ],
-      "id": "356a80b1-0b3f-4af2-8ed0-d9d1152a2d2e",
+      "id": "0fd7b9c7-00a7-485d-b555-b07a6129ae94",
       "name": "Submit Business Request"
     },
     {
@@ -37,30 +37,30 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        -864,
-        -256
+        -1056,
+        256
       ],
-      "id": "675ce1d5-231f-4c55-8aef-1409b15d7104",
+      "id": "ac89f4da-49b5-45e0-ad6a-c8a8a21906f3",
       "name": "Wait for Processing",
       "webhookId": "b762aa9b-9eae-41f3-a030-d2a221146b7e"
     },
     {
       "parameters": {
-        "url": "={{ 'http://host.docker.internal:8000/api/v1/requests/' + $json.id }}",
+        "url": "={{ 'http://api:8000/api/v1/requests/' + $json.id }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        -720,
-        -416
+        -912,
+        96
       ],
-      "id": "78cb45df-6c1c-4fdd-a4c7-b9a1f683a8bf",
+      "id": "4265a337-50f4-4c06-8ffb-aedc3cc61fe9",
       "name": "Get Request Status"
     },
     {
       "parameters": {
-        "url": "http://host.docker.internal:8000/api/v1/agent-actions",
+        "url": "http://api:8000/api/v1/agent-actions",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -79,10 +79,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        -400,
-        -432
+        -592,
+        80
       ],
-      "id": "73145fff-df14-429b-a6d1-2ceb4067027c",
+      "id": "99224b37-3b1e-441b-aedc-900384e42e58",
       "name": "Get Pending Agent Action"
     },
     {
@@ -118,10 +118,10 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        -96,
-        -432
+        -288,
+        80
       ],
-      "id": "e44e1163-a80c-4e8b-b238-fc9fb0c11ea5",
+      "id": "5da5301c-7389-4d89-9b1f-1d5e57da1b72",
       "name": "Human Approval",
       "webhookId": "8d5c32e4-247b-45a2-93b3-8ab6a1d47532"
     },
@@ -132,10 +132,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -240,
-        -464
+        -432,
+        48
       ],
-      "id": "e87342ed-f06d-48a2-95b9-c7e1dc87144e",
+      "id": "dc8a7e98-5716-4755-b51a-a60a9eaa4df5",
       "name": "Prepare Approval Data"
     },
     {
@@ -166,31 +166,31 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        32,
-        -432
+        -160,
+        80
       ],
-      "id": "3c429c79-c3be-4bab-9176-abba6126b06a",
+      "id": "afe9396c-1e75-4a39-aea2-76a91e1877e7",
       "name": "Approved?"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'http://host.docker.internal:8000/api/v1/agent-actions/' + $('Prepare Approval Data').first().json.action_id + '/approve' }}",
+        "url": "={{ 'http://api:8000/api/v1/agent-actions/' + $('Prepare Approval Data').first().json.action_id + '/approve' }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        192,
-        -512
+        0,
+        0
       ],
-      "id": "a0e6e2d9-0298-4c17-9226-539427c1e68a",
+      "id": "39b126d8-0538-4076-b8bf-213997069d47",
       "name": "Approve Agent Action"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'http://host.docker.internal:8000/api/v1/agent-actions/' + $('Prepare Approval Data').first().json.action_id + '/reject' }}",
+        "url": "={{ 'http://api:8000/api/v1/agent-actions/' + $('Prepare Approval Data').first().json.action_id + '/reject' }}",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -205,10 +205,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        208,
-        -336
+        16,
+        176
       ],
-      "id": "56c5a4d2-5700-4a3f-9cc5-4356bfd67ced",
+      "id": "0896372c-613c-4991-ac64-47b11df16bd0",
       "name": "Reject Agent Action"
     },
     {
@@ -239,10 +239,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        -560,
-        -416
+        -752,
+        96
       ],
-      "id": "05945f36-8f51-447f-97c9-a32a69426748",
+      "id": "e4219d02-8e3d-4ee6-b066-d258d9fb488a",
       "name": "Awaiting Approval?"
     },
     {
@@ -273,10 +273,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        -640,
-        -192
+        -832,
+        320
       ],
-      "id": "26f9f41a-cf02-4b10-93a1-0464588c436d",
+      "id": "45a4aba3-289f-4647-be5e-fa99661bff93",
       "name": "Processing?"
     },
     {
@@ -307,10 +307,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        -432,
-        32
+        -624,
+        544
       ],
-      "id": "c526ca49-e346-437e-8a05-d059efdba8f9",
+      "id": "3ba2e563-74b0-4f39-a37a-94cbaad0dafd",
       "name": "Completed?"
     },
     {
@@ -341,10 +341,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        -176,
-        48
+        -368,
+        560
       ],
-      "id": "7ea84977-1fb5-4b58-b5ad-f4ca86ca8704",
+      "id": "046acf85-017a-4e7e-b84a-d1dbcb66df45",
       "name": "Failed?"
     },
     {
@@ -359,7 +359,7 @@
           "conditions": [
             {
               "id": "0650f524-199a-499a-899f-f4811c592f13",
-              "leftValue": "={{ Date.now() - new Date($json.created_at).getTime() > 120000 }}",
+              "leftValue": "={{ Date.now() - new Date($json.created_at).getTime() > 300000 }}",
               "rightValue": "",
               "operator": {
                 "type": "boolean",
@@ -375,23 +375,23 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        -384,
-        -224
+        -576,
+        288
       ],
-      "id": "a521ae05-2c83-4e08-919d-3fbdaa6b1b66",
+      "id": "d8cb533e-d3e2-4837-a342-a520088f0942",
       "name": "Timed Out?"
     },
     {
       "parameters": {
-        "errorMessage": "Business request processing timed out after 120 seconds."
+        "errorMessage": "Business request processing timed out after 300 seconds."
       },
       "type": "n8n-nodes-base.stopAndError",
       "typeVersion": 1,
       "position": [
-        -176,
-        -288
+        -368,
+        224
       ],
-      "id": "d54e67cf-7f7b-4bec-837b-cf5da965145a",
+      "id": "2c8f3ffc-fed5-4ef1-9abe-e8f5364dc81c",
       "name": "Processing Timeout"
     },
     {
@@ -401,10 +401,10 @@
       "type": "n8n-nodes-base.stopAndError",
       "typeVersion": 1,
       "position": [
-        16,
-        -128
+        -176,
+        384
       ],
-      "id": "e8b503f0-4a42-454c-b980-ca1d8c421ffc",
+      "id": "94f17f18-87c7-4953-b72e-9c7364edbb63",
       "name": "Processing Failed"
     },
     {
@@ -414,10 +414,10 @@
       "type": "n8n-nodes-base.stopAndError",
       "typeVersion": 1,
       "position": [
-        32,
-        80
+        -160,
+        592
       ],
-      "id": "b0cd88ff-4e02-4e14-a712-5f1a490a6d56",
+      "id": "29123a53-d0e6-4107-b731-634edfa2f5a0",
       "name": "Unexpected Request Status"
     }
   ],
@@ -609,8 +609,6 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "ddce37a5-4516-46e7-9482-47f2b6c497e9",
   "nodeGroups": [],
-  "id": "x3XiIhuqZNBe1Axr",
   "tags": []
 }
