@@ -88,6 +88,12 @@ tool_executed
 
 ![Production-Ready AI Business Automation Agent Architecture](docs/images/architecture.png)
 
+## Operations Dashboard
+
+The operations dashboard provides a live view of request processing, pending human approvals, and ordered audit events.
+
+![Operations Dashboard](docs/images/dashboard-full.png)
+
 ## Core Components
 
 ### FastAPI Backend
