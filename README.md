@@ -88,56 +88,6 @@ tool_executed
 
 ![Production-Ready AI Business Automation Agent Architecture](docs/images/architecture.png)
 
-```text
-                     ┌─────────────────────┐
-                     │      Next.js UI     │
-                     │ Operations Dashboard│
-                     └──────────┬──────────┘
-                                │
-                                ▼
-                     ┌─────────────────────┐
-                     │      FastAPI        │
-                     │ REST / Webhooks     │
-                     └──────────┬──────────┘
-                                │
-             ┌──────────────────┼──────────────────┐
-             │                  │                  │
-             ▼                  ▼                  ▼
-   ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-   │   PostgreSQL    │ │      Redis      │ │      n8n        │
-   │    pgvector     │ │ Celery Broker   │ │ Orchestration   │
-   └────────┬────────┘ └────────┬────────┘ └─────────────────┘
-            │                   │
-            │                   ▼
-            │        ┌─────────────────────┐
-            │        │   Celery Worker     │
-            │        └──────────┬──────────┘
-            │                   │
-            │                   ▼
-            │        ┌─────────────────────┐
-            │        │   Ollama / Qwen3    │
-            │        │ AI Analysis + Agent │
-            │        └──────────┬──────────┘
-            │                   │
-            │                   ▼
-            │        ┌─────────────────────┐
-            └───────►│ RAG / Tool Calling  │
-                     └──────────┬──────────┘
-                                │
-                                ▼
-                     ┌─────────────────────┐
-                     │ Human-in-the-Loop   │
-                     │ Approval / Reject   │
-                     └──────────┬──────────┘
-                                │
-                                ▼
-                     ┌─────────────────────┐
-                     │   Audit Trail       │
-                     └─────────────────────┘
-```
-
----
-
 ## Core Components
 
 ### FastAPI Backend
