@@ -1,37 +1,57 @@
 # Production-Ready AI Business Automation Agent
 
-A production-style AI business automation platform built with FastAPI, PostgreSQL, pgvector, Redis, Celery, Ollama, n8n, Next.js, Docker, AWS, and GitHub Actions.
+A production-style AI business automation platform that combines **FastAPI, PostgreSQL + pgvector, Redis, Celery, Ollama, n8n, Next.js, Docker, AWS EC2, and GitHub Actions**.
 
-The system accepts business requests, processes them asynchronously, uses an AI agent to analyze the request and call tools, retrieves relevant internal knowledge through RAG, requires human approval before protected actions, and records an ordered audit trail for traceability.
-
----
-
-## Overview
-
-This project demonstrates how an AI agent can be integrated into a production-style backend system rather than used as a standalone chatbot.
-
-The platform supports:
-
-- Business request intake through REST APIs and authenticated webhooks
-- Asynchronous processing with Celery and Redis
-- Local AI inference with Ollama
-- AI-driven business request classification
-- Agent tool calling
-- Retrieval-Augmented Generation (RAG)
-- PostgreSQL + pgvector semantic search
-- Human-in-the-Loop approval for protected actions
-- Ordered audit trail
-- n8n business workflow orchestration
-- Next.js operations dashboard
-- Dockerized services
-- AWS deployment
-- GitHub Actions CI
+The system accepts business requests, processes them asynchronously, uses an AI agent to analyze requests and call tools, retrieves internal policy through RAG, pauses protected actions for human approval, and records ordered audit events for traceability.
 
 ---
 
-## End-to-End Workflow
+## Key Highlights
 
-A validated AWS end-to-end workflow:
+- **AI Agent Tool Calling** — the agent can select and invoke registered tools based on request context.
+- **Retrieval-Augmented Generation** — semantic search over internal knowledge using Ollama embeddings and PostgreSQL + pgvector.
+- **Human-in-the-Loop Governance** — protected actions require explicit human approval before execution.
+- **Async Processing** — Redis + Celery decouple request intake from long-running AI processing.
+- **Workflow Orchestration** — n8n coordinates request submission, polling, timeout handling, approval, and protected action execution.
+- **Operations Dashboard** — Next.js UI surfaces health, readiness, requests, pending approvals, and audit events.
+- **AWS Deployment** — the full Docker Compose stack has been deployed and validated on AWS EC2.
+- **Auditability** — ordered persistent audit events capture tool requests, approvals, rejections, and execution results.
+- **CI Validation** — GitHub Actions runs backend tests, frontend lint/build checks, and Docker build validation.
+- **61 Passing Backend Tests** — covering core API, workflow, agent, webhook, approval, RAG, and audit behavior.
+
+---
+
+## Architecture
+
+![Production-Ready AI Business Automation Agent Architecture](docs/images/architecture.png)
+
+---
+
+## Operations Dashboard
+
+The operations dashboard provides a live view of request processing, pending human approvals, and ordered audit events.
+
+![Operations Dashboard](docs/images/dashboard-full.png)
+
+---
+
+## n8n Human-in-the-Loop Workflow
+
+This workflow orchestrates business request processing, polling, timeout handling, human approval, and protected action execution inside n8n.
+
+![n8n Human-in-the-Loop Workflow](docs/images/n8n-hitl-workflow.png)
+
+---
+
+## AWS RAG and Audit Evidence
+
+A validated AWS end-to-end run shows the agent retrieving the relevant internal incident-response policy, requesting a protected escalation action, waiting for human approval, and recording the complete ordered audit trail.
+
+![AWS RAG and Audit Evidence](docs/images/aws-rag-audit-evidence.png)
+
+---
+
+## Validated End-to-End Flow
 
 ```text
 Business Request
@@ -39,8 +59,6 @@ Business Request
 n8n
         ↓
 FastAPI
-        ↓
-PostgreSQL
         ↓
 Redis / Celery
         ↓
@@ -67,11 +85,15 @@ Tool Execution
 Ordered Audit Trail
 ```
 
-In the AWS validation flow, the agent searched for an internal incident-response policy and retrieved the relevant knowledge chunk with a semantic similarity of approximately `0.821`.
+A real AWS validation run retrieved:
 
-The agent then requested the protected `escalate_incident` tool. The action was blocked until a human approved it.
+```text
+Document: Incident Response Policy
+Source: internal-policy
+Similarity: ~0.821
+```
 
-The audit trail recorded:
+The same run then produced the following ordered audit sequence:
 
 ```text
 agent_tool_requested
@@ -83,28 +105,6 @@ tool_executed
 ```
 
 ---
-
-## Architecture
-
-![Production-Ready AI Business Automation Agent Architecture](docs/images/architecture.png)
-
-## Operations Dashboard
-
-The operations dashboard provides a live view of request processing, pending human approvals, and ordered audit events.
-
-![Operations Dashboard](docs/images/dashboard-full.png)
-
-## n8n Human-in-the-Loop Workflow
-
-This workflow orchestrates business request processing, polling, timeout handling, human approval, and protected action execution inside n8n.
-
-![n8n Human-in-the-Loop Workflow](docs/images/n8n-hitl-workflow.png)
-
-## AWS RAG and Audit Evidence
-
-A validated AWS end-to-end run shows the agent retrieving the relevant internal incident-response policy, requesting a protected escalation action, waiting for human approval, and recording the complete ordered audit trail.
-
-![AWS RAG and Audit Evidence](docs/images/aws-rag-audit-evidence.png)
 
 ## Core Components
 
@@ -128,11 +128,9 @@ POST /api/v1/agent-actions/{action_id}/approve
 POST /api/v1/agent-actions/{action_id}/reject
 ```
 
----
+### Async Processing
 
-## Async Processing
-
-Business requests are processed asynchronously using:
+Business requests are processed asynchronously through:
 
 ```text
 FastAPI
@@ -151,13 +149,9 @@ The worker handles:
 
 The AWS deployment uses a resource-conscious Celery configuration with worker concurrency limited to one process.
 
----
-
-## AI Provider
+### AI Provider
 
 The system uses Ollama for local/self-hosted AI inference.
-
-Current production-style deployment uses:
 
 ```text
 Model:
@@ -169,11 +163,9 @@ nomic-embed-text:v1.5
 
 This allows the project to run without relying on paid external AI APIs.
 
----
+### Retrieval-Augmented Generation
 
-## Retrieval-Augmented Generation
-
-The RAG pipeline supports:
+The RAG pipeline follows:
 
 ```text
 Knowledge Document
@@ -193,43 +185,22 @@ Relevant Knowledge Chunk
 
 Embeddings use `768` dimensions.
 
-A validated AWS retrieval returned:
+### AI Agent
 
-```text
-Document:
-Incident Response Policy
-
-Source:
-internal-policy
-
-Similarity:
-~0.821
-```
-
----
-
-## AI Agent
-
-The AI agent can select and execute registered tools.
-
-Current tools include:
+The current registered tools include:
 
 ```text
 search_knowledge_base
 escalate_incident
 ```
 
-The agent uses the knowledge-base search tool when business-specific policy or guidance is needed.
+The agent uses `search_knowledge_base` when a request depends on business-specific policy or guidance.
 
-High-impact tools such as `escalate_incident` require explicit human approval.
+High-impact tools such as `escalate_incident` require human approval.
 
----
+### Human-in-the-Loop
 
-## Human-in-the-Loop
-
-Protected agent actions are never executed immediately.
-
-The workflow is:
+Protected actions are not executed immediately.
 
 ```text
 Agent requests protected action
@@ -243,13 +214,9 @@ Approve / Reject
 Protected tool execution
 ```
 
-The n8n workflow provides a human approval form that allows an operator to approve or reject the proposed action.
+### Audit Trail
 
----
-
-## Audit Trail
-
-Every important agent action is persisted as an ordered audit event.
+Important agent and approval activity is persisted as ordered audit events.
 
 Examples:
 
@@ -269,13 +236,9 @@ This provides traceability for:
 - What decision the human made
 - What result the protected action produced
 
----
+### n8n Orchestration
 
-## n8n Orchestration
-
-n8n is used as the business orchestration layer rather than as the core application backend.
-
-The workflow handles:
+n8n is used as the orchestration layer rather than the core application backend.
 
 ```text
 Submit Business Request
@@ -302,13 +265,9 @@ The workflow includes:
 
 AWS polling timeout: `300 seconds`.
 
----
+### Frontend
 
-## Frontend
-
-The Next.js frontend acts as an operations dashboard.
-
-It displays:
+The Next.js operations dashboard displays:
 
 - Backend health
 - Readiness status
@@ -317,7 +276,7 @@ It displays:
 - Pending approvals
 - Audit events
 
-The frontend uses a server-side backend integration pattern rather than directly exposing internal service URLs to the browser.
+The frontend uses a server-side backend integration pattern rather than exposing internal service URLs directly to the browser.
 
 ---
 
@@ -325,7 +284,7 @@ The frontend uses a server-side backend integration pattern rather than directly
 
 The complete stack has been deployed and validated on AWS EC2.
 
-AWS deployment components:
+Deployment components:
 
 ```text
 PostgreSQL + pgvector
@@ -341,9 +300,7 @@ All services run through Docker Compose.
 
 Internal infrastructure services such as PostgreSQL, Redis, and Ollama are not exposed publicly.
 
-During development and validation, the application services were accessed securely through SSH tunnels instead of opening application ports directly to the internet.
-
-Example development access pattern:
+During validation, application services were accessed through SSH tunnels instead of opening application ports directly to the internet.
 
 ```text
 Local Browser
@@ -354,6 +311,8 @@ AWS EC2
       ↓
 Next.js / FastAPI / n8n
 ```
+
+The EC2 host uses **Amazon Linux 2023**.
 
 ---
 
@@ -368,7 +327,7 @@ Production-style containerization includes:
 - Ollama
 - n8n
 
-The frontend uses the Next.js standalone build output to reduce the production image footprint.
+The frontend uses the Next.js standalone build output for its production container.
 
 ---
 
@@ -376,7 +335,7 @@ The frontend uses the Next.js standalone build output to reduce the production i
 
 GitHub Actions validates the application on pushes and pull requests.
 
-Current CI pipeline includes:
+Current CI checks include:
 
 ```text
 Backend Tests
@@ -385,17 +344,21 @@ Frontend Production Build
 Docker Build
 ```
 
-The project currently implements CI.
+The project currently implements **CI**.
 
-Automated production deployment is intentionally not claimed as completed CD.
+Automated production deployment is not claimed as completed CD.
 
 ---
 
 ## Testing
 
-The backend test suite includes `61 passing tests`.
+The backend test suite currently has:
 
-Test coverage includes areas such as:
+```text
+61 passing tests
+```
+
+Coverage includes:
 
 - API behavior
 - Business request lifecycle
@@ -407,9 +370,9 @@ Test coverage includes areas such as:
 
 ---
 
-## Reliability Features
+## Reliability and Observability
 
-The project includes:
+Implemented reliability and observability features include:
 
 - Health endpoint
 - Readiness endpoint
@@ -426,14 +389,14 @@ The project includes:
 
 ## Security Design
 
-Implemented security-related controls include:
+Implemented controls include:
 
 - Webhook shared-secret authentication
 - Protected agent actions requiring human approval
 - Internal Docker service networking
-- Database / Redis / Ollama not publicly exposed
+- PostgreSQL / Redis / Ollama not publicly exposed
 - Secrets stored outside Git
-- n8n encryption key stored in runtime environment
+- n8n encryption key provided at runtime
 - AWS infrastructure accessed through SSH
 
 Public production exposure is intentionally not enabled yet.
@@ -518,6 +481,13 @@ Before public deployment, the next security layer would include:
 │   └── workflows/
 │       └── business-request-hitl.json
 │
+├── docs/
+│   └── images/
+│       ├── architecture.png
+│       ├── dashboard-full.png
+│       ├── n8n-hitl-workflow.png
+│       └── aws-rag-audit-evidence.png
+│
 ├── alembic/
 ├── .github/
 │   └── workflows/
@@ -531,7 +501,7 @@ Before public deployment, the next security layer would include:
 
 The project is designed to run through Docker-based infrastructure combined with local application development.
 
-Required services include:
+Required infrastructure services include:
 
 - PostgreSQL
 - Redis
@@ -547,7 +517,7 @@ Secrets must never be committed to Git.
 
 This project intentionally avoids unnecessary architectural complexity.
 
-The system does not use Kubernetes, Kafka, or large-scale microservice decomposition because they are not required for the current workload.
+Kubernetes, Kafka, large-scale microservice decomposition, and multi-agent orchestration were not added simply to increase the technology count.
 
 Instead, the design focuses on:
 
@@ -560,14 +530,15 @@ Instead, the design focuses on:
 - Auditability
 - Containerization
 - Cloud deployment
+- Observability
 
-The goal is to demonstrate production-oriented engineering decisions rather than simply maximize the number of technologies used.
+The goal is to demonstrate production-oriented engineering decisions rather than maximize architectural complexity.
 
 ---
 
 ## Project Status
 
-Core application and AWS end-to-end workflow are complete.
+Core application functionality and the AWS end-to-end workflow are complete and validated.
 
 Validated:
 
@@ -582,21 +553,21 @@ Validated:
 - Agent tool calling
 - Human-in-the-Loop
 - Ordered audit trail
-- n8n workflow
+- n8n orchestration
 - Next.js frontend
 - Docker deployment
 - AWS deployment
 - GitHub Actions CI
 
-Remaining work is primarily presentation, security hardening for public exposure, and optional deployment automation.
+Remaining work is primarily optional public-exposure security hardening and optional deployment automation.
 
 ---
 
 ## Why This Project
 
-The purpose of this project is to demonstrate the integration of modern AI capabilities with traditional software engineering practices.
+The project demonstrates how modern AI capabilities can be integrated with conventional software engineering practices.
 
-Rather than building a simple chatbot, the system combines:
+Rather than building a standalone chatbot, it combines:
 
 ```text
 AI
