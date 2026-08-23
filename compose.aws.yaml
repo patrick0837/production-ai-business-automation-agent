@@ -202,6 +202,9 @@ services:
       N8N_PORT: 5678
       N8N_PROTOCOL: http
 
+      N8N_EDITOR_BASE_URL: http://localhost:15678
+      N8N_WEBHOOK_URL: http://localhost:15678
+
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?N8N_ENCRYPTION_KEY is required}
       N8N_SECURE_COOKIE: "false"
 
