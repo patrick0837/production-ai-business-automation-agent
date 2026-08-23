@@ -94,6 +94,12 @@ The operations dashboard provides a live view of request processing, pending hum
 
 ![Operations Dashboard](docs/images/dashboard-full.png)
 
+## n8n Human-in-the-Loop Workflow
+
+This workflow orchestrates business request processing, polling, timeout handling, human approval, and protected action execution inside n8n.
+
+![n8n Human-in-the-Loop Workflow](docs/images/n8n-hitl-workflow.png)
+
 ## Core Components
 
 ### FastAPI Backend
