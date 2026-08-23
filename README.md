@@ -86,6 +86,8 @@ tool_executed
 
 ## Architecture
 
+![Production-Ready AI Business Automation Agent Architecture](docs/images/architecture.png)
+
 ```text
                      ┌─────────────────────┐
                      │      Next.js UI     │
