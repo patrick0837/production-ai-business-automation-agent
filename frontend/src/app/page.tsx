@@ -1,4 +1,5 @@
 import ApprovalCard from "@/components/approval-card";
+import DemoRequestForm from "@/components/demo-request-form";
 import { getDashboardData } from "@/lib/api";
 
 function formatDate(value: string) {
@@ -34,6 +35,7 @@ export default async function Home() {
   } = await getDashboardData();
 
   const recentRequests = requests.slice(0, 8);
+
   const recentAuditEvents = [...auditEvents]
       .sort(
           (a, b) =>
@@ -54,10 +56,11 @@ export default async function Home() {
             </h1>
 
             <p className="subtitle">
-              Live operations dashboard for
-              AI-assisted request processing,
-              RAG, agent actions, human approval,
-              and auditability.
+              Interactive AI operations demo
+              combining business request
+              processing, RAG, agent actions,
+              Human-in-the-Loop approval and
+              ordered auditability.
             </p>
           </div>
 
@@ -66,6 +69,8 @@ export default async function Home() {
                 "backend unavailable"}
           </div>
         </header>
+
+        <DemoRequestForm />
 
         <section className="metrics-grid">
           <article className="metric-card">
@@ -197,7 +202,7 @@ export default async function Home() {
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">
-                  Human-in-the-loop
+                  Human-in-the-Loop
                 </p>
 
                 <h2>
@@ -211,12 +216,14 @@ export default async function Home() {
             </div>
 
             <div className="stack">
-              {pendingActions.map((action) => (
-                  <ApprovalCard
-                      key={action.id}
-                      action={action}
-                  />
-              ))}
+              {pendingActions.map(
+                  (action) => (
+                      <ApprovalCard
+                          key={action.id}
+                          action={action}
+                      />
+                  ),
+              )}
 
               {pendingActions.length === 0 && (
                   <p className="empty-state">
