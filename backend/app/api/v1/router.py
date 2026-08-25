@@ -6,6 +6,9 @@ from .agent_actions import (
 from .audit_events import (
     router as audit_events_router,
 )
+from .demo import (
+    router as demo_router,
+)
 from .requests import (
     router as requests_router,
 )
@@ -30,4 +33,8 @@ api_v1_router.include_router(
 
 api_v1_router.include_router(
     webhooks_router
+)
+
+api_v1_router.include_router(
+    demo_router
 )
