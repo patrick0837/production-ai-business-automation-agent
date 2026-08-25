@@ -2,7 +2,7 @@
 
 A production-style AI business automation platform that combines **FastAPI, PostgreSQL + pgvector, Redis, Celery, Ollama, n8n, Next.js, Docker, AWS EC2, and GitHub Actions**.
 
-The system accepts business requests, processes them asynchronously, uses an AI agent to analyze requests and call tools, retrieves internal policy through RAG, pauses protected actions for human approval, and records ordered audit events for traceability.
+The system accepts business requests, processes them asynchronously, uses an AI agent to analyze requests and call tools, retrieves internal policy through RAG, pauses protected actions for human approval, records ordered audit events for traceability, and exposes a demo-safe interactive workflow through the Next.js operations dashboard.
 
 ---
 
@@ -13,11 +13,12 @@ The system accepts business requests, processes them asynchronously, uses an AI 
 - **Human-in-the-Loop Governance** — protected actions require explicit human approval before execution.
 - **Async Processing** — Redis + Celery decouple request intake from long-running AI processing.
 - **Workflow Orchestration** — n8n coordinates request submission, polling, timeout handling, approval, and protected action execution.
+- **Interactive Public Demo** — a demo-safe Next.js workflow can submit simulated business incidents and surface request state, approvals, execution, and audit evidence.
 - **Operations Dashboard** — Next.js UI surfaces health, readiness, requests, pending approvals, and audit events.
 - **AWS Deployment** — the full Docker Compose stack has been deployed and validated on AWS EC2.
 - **Auditability** — ordered persistent audit events capture tool requests, approvals, rejections, and execution results.
 - **CI Validation** — GitHub Actions runs backend tests, frontend lint/build checks, and Docker build validation.
-- **61 Passing Backend Tests** — covering core API, workflow, agent, webhook, approval, RAG, and audit behavior.
+- **64 Passing Backend Tests** — covering core API, workflow, agent, webhook, approval, RAG, audit, and demo-request behavior.
 
 ---
 
@@ -32,6 +33,52 @@ The system accepts business requests, processes them asynchronously, uses an AI 
 The operations dashboard provides a live view of request processing, pending human approvals, and ordered audit events.
 
 ![Operations Dashboard](docs/images/dashboard-full.png)
+
+---
+
+## Interactive Public Demo
+
+The frontend includes a demo-safe interactive business incident flow designed to demonstrate the full request lifecycle without exposing internal service URLs directly to the browser.
+
+A simulated incident can be submitted from the dashboard and followed through the real backend workflow:
+
+```text
+Submit Simulated Incident
+        ↓
+Queued
+        ↓
+AI / RAG Processing
+        ↓
+Protected Agent Action
+        ↓
+Awaiting Approval
+        ↓
+Human Approve / Reject
+        ↓
+Tool Execution
+        ↓
+Completed
+        ↓
+Ordered Audit Trail
+```
+
+The locally validated demo flow produced:
+
+```text
+public-live-demo
+→ Completed
+```
+
+with corresponding audit events including:
+
+```text
+action_approved
+tool_executed
+```
+
+![Interactive Public Demo](docs/images/public-live-demo.png)
+
+The interactive demo flow has been validated locally end-to-end. Public production exposure is intentionally not enabled yet.
 
 ---
 
@@ -113,6 +160,7 @@ tool_executed
 The backend provides:
 
 - Business request APIs
+- Demo-safe request submission API
 - Authenticated webhook intake
 - Agent action APIs
 - Human approval / rejection endpoints
@@ -123,6 +171,7 @@ Example endpoints:
 
 ```text
 POST /api/v1/requests
+POST /api/v1/demo/requests
 POST /api/v1/webhooks/business-requests
 POST /api/v1/agent-actions/{action_id}/approve
 POST /api/v1/agent-actions/{action_id}/reject
@@ -275,6 +324,8 @@ The Next.js operations dashboard displays:
 - Business requests
 - Pending approvals
 - Audit events
+- Interactive demo-safe business incident submission
+- Live workflow state visibility
 
 The frontend uses a server-side backend integration pattern rather than exposing internal service URLs directly to the browser.
 
@@ -355,13 +406,14 @@ Automated production deployment is not claimed as completed CD.
 The backend test suite currently has:
 
 ```text
-61 passing tests
+64 passing tests
 ```
 
 Coverage includes:
 
 - API behavior
 - Business request lifecycle
+- Demo request submission
 - Agent actions
 - Human approval
 - Webhooks
@@ -485,6 +537,7 @@ Before public deployment, the next security layer would include:
 │   └── images/
 │       ├── architecture.png
 │       ├── dashboard-full.png
+│       ├── public-live-demo.png
 │       ├── n8n-hitl-workflow.png
 │       └── aws-rag-audit-evidence.png
 │
@@ -538,7 +591,7 @@ The goal is to demonstrate production-oriented engineering decisions rather than
 
 ## Project Status
 
-Core application functionality and the AWS end-to-end workflow are complete and validated.
+Core application functionality, the AWS end-to-end workflow, and the interactive local demo workflow are complete and validated.
 
 Validated:
 
@@ -555,6 +608,8 @@ Validated:
 - Ordered audit trail
 - n8n orchestration
 - Next.js frontend
+- Interactive Public Demo
+- Local demo end-to-end workflow
 - Docker deployment
 - AWS deployment
 - GitHub Actions CI
