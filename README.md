@@ -1,9 +1,12 @@
-````
 # Production-Ready AI Business Automation Agent
 
-A production-style AI business automation platform that combines **FastAPI, PostgreSQL + pgvector, Redis, Celery, Ollama, n8n, Next.js, Docker, AWS EC2, and GitHub Actions**.
+A production-style AI business automation platform that combines **FastAPI, PostgreSQL + pgvector, Redis, Celery, Ollama, n8n, Next.js, Docker, AWS EC2, Cloudflare Tunnel, and GitHub Actions**.
 
 The system accepts business requests, processes them asynchronously, uses an AI agent to analyze requests and call tools, retrieves internal policy through RAG, pauses protected actions for human approval, records ordered audit events for traceability, and exposes a demo-safe interactive workflow through the Next.js operations dashboard.
+
+> **Live Demo:** [https://agent.edmondbeaumont.com](https://agent.edmondbeaumont.com)
+>
+> The public demo is served over HTTPS through a Cloudflare Named Tunnel to the AWS EC2 production stack. The EC2 instance can be started or stopped independently without changing the public hostname.
 
 ---
 
@@ -14,9 +17,10 @@ The system accepts business requests, processes them asynchronously, uses an AI 
 - **Human-in-the-Loop Governance** — protected actions require explicit human approval before execution.
 - **Async Processing** — Redis + Celery decouple request intake from long-running AI processing.
 - **Workflow Orchestration** — n8n coordinates request submission, polling, timeout handling, approval, and protected action execution.
-- **Interactive Public Demo** — a demo-safe Next.js workflow can submit simulated business incidents and surface request state, approvals, protected action execution, and audit evidence; validated end-to-end both locally and on the AWS EC2 production stack.
+- **Interactive Public Demo** — a demo-safe Next.js workflow is publicly reachable at `agent.edmondbeaumont.com` and can submit simulated business incidents, surface request state, approvals, protected action execution, and audit evidence.
 - **Operations Dashboard** — Next.js UI surfaces health, readiness, requests, pending approvals, and audit events.
-- **AWS Deployment** — the full Docker Compose stack has been deployed and validated on AWS EC2.
+- **Public Demo Hardening** — demo request rate limiting, loopback-only host port bindings, secret isolation, and Cloudflare Tunnel reduce unnecessary public exposure.
+- **AWS Deployment** — the full Docker Compose stack is deployed on AWS EC2 with Cloudflare Tunnel providing the fixed HTTPS public entry point.
 - **Auditability** — ordered persistent audit events capture tool requests, approvals, rejections, and execution results.
 - **CI Validation** — GitHub Actions runs backend tests, frontend lint/build checks, and Docker build validation.
 - **64 Passing Backend Tests** — covering core API, workflow, agent, webhook, approval, RAG, audit, and demo-request behavior.
@@ -41,50 +45,16 @@ The operations dashboard provides a live view of request processing, pending hum
 
 The frontend includes a demo-safe interactive business incident flow designed to demonstrate the full request lifecycle without exposing internal service URLs directly to the browser.
 
+**Public URL:** [https://agent.edmondbeaumont.com](https://agent.edmondbeaumont.com)
+
 A simulated incident can be submitted from the dashboard and followed through the real backend workflow:
 
 ```text
-Submit Simulated Incident
+Public Browser
         ↓
-Queued
+Cloudflare HTTPS / Named Tunnel
         ↓
-AI / RAG Processing
-        ↓
-Protected Agent Action
-        ↓
-Awaiting Approval
-        ↓
-Human Approve / Reject
-        ↓
-Tool Execution
-        ↓
-Completed
-        ↓
-Ordered Audit Trail
-```
-
-The locally validated demo flow produced:
-
-```text
-public-live-demo
-→ Completed
-```
-
-with corresponding audit events including:
-
-```text
-action_approved
-tool_executed
-```
-
-![Interactive Public Demo](docs/images/public-live-demo.png)
-
-The same browser-based workflow was also validated against the AWS EC2 production stack through SSH port forwarding.
-
-The AWS validation completed the full lifecycle:
-
-```text
-Browser Submission
+Next.js Demo Submission
         ↓
 FastAPI
         ↓
@@ -98,9 +68,11 @@ RAG / pgvector Retrieval
         ↓
 Agent Tool Calling
         ↓
+Protected Agent Action
+        ↓
 Awaiting Approval
         ↓
-Browser Human Approval
+Browser Human Approve / Reject
         ↓
 Protected Tool Execution
         ↓
@@ -109,7 +81,9 @@ Completed
 Ordered Audit Trail
 ```
 
-The final AWS state showed:
+The demo uses the real application workflow while restricting public intake to a demo-safe endpoint. Request rate limiting is applied at the Next.js server layer before requests are forwarded to the FastAPI demo API.
+
+The validated browser flow produced:
 
 ```text
 public-live-demo → Completed
@@ -118,9 +92,27 @@ action_approved
 tool_executed
 ```
 
+![Interactive Public Demo](docs/images/public-live-demo.png)
+
+The same lifecycle was validated on the AWS EC2 production stack, including AI analysis, RAG retrieval, Human-in-the-Loop approval, protected tool execution, request completion, and ordered persistent audit events.
+
 ![AWS Production Public Demo Validation](docs/images/aws-public-demo-complete.png)
 
-The interactive demo is therefore validated end-to-end both locally and on the AWS production stack. Public internet exposure is intentionally not enabled; AWS validation is performed through SSH tunneling.
+The final public path is independent of the EC2 public IPv4 address:
+
+```text
+agent.edmondbeaumont.com
+        ↓
+Cloudflare Named Tunnel
+        ↓
+cloudflared (Docker Compose)
+        ↓
+frontend:3000
+        ↓
+api:8000
+```
+
+The tunnel and application stack were also validated after Docker Compose restart, and the public hostname remained unchanged across EC2 stop/start operations.
 
 ---
 
@@ -387,27 +379,40 @@ Celery Worker
 Ollama
 n8n
 Next.js
+cloudflared
 ```
 
-All services run through Docker Compose.
+All services run through Docker Compose on **Amazon Linux 2023**.
 
-Internal infrastructure services such as PostgreSQL, Redis, and Ollama are not exposed publicly.
-
-During validation, application services were accessed through SSH tunnels instead of opening application ports directly to the internet.
+The public application entry point is:
 
 ```text
-Local Browser
-      ↓
-SSH Tunnel
-      ↓
-AWS EC2
-      ↓
-Next.js / FastAPI / n8n
+https://agent.edmondbeaumont.com
+        ↓
+Cloudflare HTTPS
+        ↓
+Cloudflare Named Tunnel
+        ↓
+cloudflared
+        ↓
+Next.js frontend
+        ↓
+FastAPI backend
 ```
 
-The interactive public demo was also validated through this tunnel against the AWS production stack, including browser submission, AI/RAG processing, Human-in-the-Loop approval, protected tool execution, request completion, and persistent audit events.
+The Cloudflare connector is managed by `compose.aws.yaml` with `restart: unless-stopped`, so it starts with the rest of the stack instead of relying on a manually launched tunnel process. The Cloudflare route targets `http://frontend:3000` over the Docker network.
 
-The EC2 host uses **Amazon Linux 2023**.
+Public host bindings are intentionally restricted:
+
+```text
+Frontend  → 127.0.0.1:3000
+FastAPI   → 127.0.0.1:8000
+n8n       → 127.0.0.1:5678
+```
+
+PostgreSQL, Redis, and Ollama are not published on host ports. Public browser traffic reaches the application through Cloudflare Tunnel rather than direct application-port exposure.
+
+The fixed hostname is independent of the EC2 public IPv4 address, allowing the instance to be stopped and restarted without changing the public demo URL.
 
 ---
 
@@ -491,20 +496,23 @@ Implemented controls include:
 - Protected agent actions requiring human approval
 - Internal Docker service networking
 - PostgreSQL / Redis / Ollama not publicly exposed
+- Frontend, FastAPI, and n8n host bindings restricted to `127.0.0.1`
+- Public HTTPS ingress through a Cloudflare Named Tunnel
+- Demo request rate limiting before backend dispatch
 - Secrets stored outside Git
+- Cloudflare Tunnel token supplied at runtime through environment configuration
 - n8n encryption key provided at runtime
-- AWS infrastructure accessed through SSH
+- AWS infrastructure administration through SSH
 
-Public production exposure is intentionally not enabled yet.
+The public hostname exposes the demo-safe frontend workflow rather than internal infrastructure services. The browser does not receive internal Docker service URLs.
 
-Before public deployment, the next security layer would include:
+For a broader multi-user production deployment, additional controls would still be appropriate, such as:
 
-- Application authentication
+- End-user authentication
 - Authorization / roles
-- HTTPS
-- Secure reverse proxy or load balancer
-- Public-domain configuration
-- Additional rate limiting and security hardening
+- Stronger distributed rate limiting and abuse controls
+- Centralized secret management
+- Automated security monitoring and alerting
 
 ---
 
@@ -548,6 +556,8 @@ Before public deployment, the next security layer would include:
 - Docker
 - Docker Compose
 - AWS EC2
+- Cloudflare Tunnel
+- Cloudflare DNS / HTTPS
 - GitHub Actions
 
 ---
@@ -628,6 +638,7 @@ Instead, the design focuses on:
 - Auditability
 - Containerization
 - Cloud deployment
+- Secure public ingress
 - Observability
 
 The goal is to demonstrate production-oriented engineering decisions rather than maximize architectural complexity.
@@ -636,7 +647,7 @@ The goal is to demonstrate production-oriented engineering decisions rather than
 
 ## Project Status
 
-Core application functionality, the AWS end-to-end workflow, and the interactive demo workflow are complete and validated both locally and on AWS EC2.
+Core application functionality, the AWS end-to-end workflow, and the public interactive demo are complete and validated.
 
 Validated:
 
@@ -656,11 +667,19 @@ Validated:
 - Interactive Public Demo
 - Local demo end-to-end workflow
 - AWS browser demo end-to-end workflow
+- Fixed public hostname: `agent.edmondbeaumont.com`
+- Cloudflare Named Tunnel
+- HTTPS public access
+- Demo request rate limiting
+- Loopback-only host bindings for frontend / FastAPI / n8n
+- Docker Compose-managed `cloudflared` service
+- Docker Compose restart recovery
+- EC2 stop/start recovery without changing the public hostname
 - Docker deployment
 - AWS deployment
 - GitHub Actions CI
 
-Remaining work is primarily optional public-exposure security hardening and optional deployment automation.
+The main remaining work is optional operational hardening and optional deployment automation. Automated production deployment is not claimed as completed CD.
 
 ---
 
@@ -694,4 +713,3 @@ Observability
 
 into one end-to-end application.
 
-````
