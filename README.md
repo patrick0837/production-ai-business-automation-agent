@@ -1,3 +1,4 @@
+````
 # Production-Ready AI Business Automation Agent
 
 A production-style AI business automation platform that combines **FastAPI, PostgreSQL + pgvector, Redis, Celery, Ollama, n8n, Next.js, Docker, AWS EC2, and GitHub Actions**.
@@ -13,7 +14,7 @@ The system accepts business requests, processes them asynchronously, uses an AI 
 - **Human-in-the-Loop Governance** — protected actions require explicit human approval before execution.
 - **Async Processing** — Redis + Celery decouple request intake from long-running AI processing.
 - **Workflow Orchestration** — n8n coordinates request submission, polling, timeout handling, approval, and protected action execution.
-- **Interactive Public Demo** — a demo-safe Next.js workflow can submit simulated business incidents and surface request state, approvals, execution, and audit evidence.
+- **Interactive Public Demo** — a demo-safe Next.js workflow can submit simulated business incidents and surface request state, approvals, protected action execution, and audit evidence; validated end-to-end both locally and on the AWS EC2 production stack.
 - **Operations Dashboard** — Next.js UI surfaces health, readiness, requests, pending approvals, and audit events.
 - **AWS Deployment** — the full Docker Compose stack has been deployed and validated on AWS EC2.
 - **Auditability** — ordered persistent audit events capture tool requests, approvals, rejections, and execution results.
@@ -78,7 +79,48 @@ tool_executed
 
 ![Interactive Public Demo](docs/images/public-live-demo.png)
 
-The interactive demo flow has been validated locally end-to-end. Public production exposure is intentionally not enabled yet.
+The same browser-based workflow was also validated against the AWS EC2 production stack through SSH port forwarding.
+
+The AWS validation completed the full lifecycle:
+
+```text
+Browser Submission
+        ↓
+FastAPI
+        ↓
+PostgreSQL
+        ↓
+Redis / Celery
+        ↓
+Ollama AI Analysis
+        ↓
+RAG / pgvector Retrieval
+        ↓
+Agent Tool Calling
+        ↓
+Awaiting Approval
+        ↓
+Browser Human Approval
+        ↓
+Protected Tool Execution
+        ↓
+Completed
+        ↓
+Ordered Audit Trail
+```
+
+The final AWS state showed:
+
+```text
+public-live-demo → Completed
+Pending Approvals → 0
+action_approved
+tool_executed
+```
+
+![AWS Production Public Demo Validation](docs/images/aws-public-demo-complete.png)
+
+The interactive demo is therefore validated end-to-end both locally and on the AWS production stack. Public internet exposure is intentionally not enabled; AWS validation is performed through SSH tunneling.
 
 ---
 
@@ -363,6 +405,8 @@ AWS EC2
 Next.js / FastAPI / n8n
 ```
 
+The interactive public demo was also validated through this tunnel against the AWS production stack, including browser submission, AI/RAG processing, Human-in-the-Loop approval, protected tool execution, request completion, and persistent audit events.
+
 The EC2 host uses **Amazon Linux 2023**.
 
 ---
@@ -538,6 +582,7 @@ Before public deployment, the next security layer would include:
 │       ├── architecture.png
 │       ├── dashboard-full.png
 │       ├── public-live-demo.png
+│       ├── aws-public-demo-complete.png
 │       ├── n8n-hitl-workflow.png
 │       └── aws-rag-audit-evidence.png
 │
@@ -591,7 +636,7 @@ The goal is to demonstrate production-oriented engineering decisions rather than
 
 ## Project Status
 
-Core application functionality, the AWS end-to-end workflow, and the interactive local demo workflow are complete and validated.
+Core application functionality, the AWS end-to-end workflow, and the interactive demo workflow are complete and validated both locally and on AWS EC2.
 
 Validated:
 
@@ -610,6 +655,7 @@ Validated:
 - Next.js frontend
 - Interactive Public Demo
 - Local demo end-to-end workflow
+- AWS browser demo end-to-end workflow
 - Docker deployment
 - AWS deployment
 - GitHub Actions CI
@@ -647,3 +693,5 @@ Observability
 ```
 
 into one end-to-end application.
+
+````
