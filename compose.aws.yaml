@@ -122,7 +122,7 @@ services:
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:?WEBHOOK_SECRET is required}
 
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
     depends_on:
       migration:
@@ -215,7 +215,7 @@ services:
       BACKEND_WEBHOOK_SECRET: ${WEBHOOK_SECRET:?WEBHOOK_SECRET is required}
 
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
 
     volumes:
       - n8n_data:/home/node/.n8n
@@ -237,11 +237,29 @@ services:
       BACKEND_BASE_URL: http://api:8000
 
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
 
     depends_on:
       api:
         condition: service_healthy
+
+    restart: unless-stopped
+
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.8.2
+
+    command:
+      [
+        "tunnel",
+        "--no-autoupdate",
+        "run",
+        "--token",
+        "${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN is required}",
+      ]
+
+    depends_on:
+      - frontend
 
     restart: unless-stopped
 
