@@ -6,9 +6,93 @@ type DemoRequestBody = {
     content?: string;
 };
 
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 1;
+
+type RateLimitEntry = {
+    count: number;
+    windowStart: number;
+};
+
+const rateLimitStore =
+    new Map<string, RateLimitEntry>();
+
+function getClientIp(
+    request: Request,
+): string {
+    const forwardedFor =
+        request.headers.get("x-forwarded-for");
+
+    if (forwardedFor) {
+        return forwardedFor
+            .split(",")[0]
+            .trim();
+    }
+
+    return (
+        request.headers.get(
+            "x-real-ip",
+        ) ?? "unknown"
+    );
+}
+
+function isRateLimited(
+    clientIp: string,
+): boolean {
+    const now = Date.now();
+
+    const existing =
+        rateLimitStore.get(clientIp);
+
+    if (
+        !existing ||
+        now - existing.windowStart >=
+        RATE_LIMIT_WINDOW_MS
+    ) {
+        rateLimitStore.set(
+            clientIp,
+            {
+                count: 1,
+                windowStart: now,
+            },
+        );
+
+        return false;
+    }
+
+    if (
+        existing.count >=
+        RATE_LIMIT_MAX_REQUESTS
+    ) {
+        return true;
+    }
+
+    existing.count += 1;
+
+    return false;
+}
+
 export async function POST(
     request: Request,
 ) {
+    const clientIp =
+        getClientIp(request);
+
+    if (isRateLimited(clientIp)) {
+        return Response.json(
+            {
+                detail:
+                    "Public demo rate limit exceeded. Please try again in one minute.",
+            },
+            {
+                status: 429,
+                headers: {
+                    "Retry-After": "60",
+                },
+            },
+        );
+    }
+
     let body: DemoRequestBody;
 
     try {
@@ -25,12 +109,26 @@ export async function POST(
         );
     }
 
-    const content = body.content?.trim();
+    const content =
+        body.content?.trim();
 
     if (!content) {
         return Response.json(
             {
-                detail: "Demo request content is required",
+                detail:
+                    "Demo request content is required",
+            },
+            {
+                status: 400,
+            },
+        );
+    }
+
+    if (content.length > 1000) {
+        return Response.json(
+            {
+                detail:
+                    "Demo request content must not exceed 1000 characters",
             },
             {
                 status: 400,
