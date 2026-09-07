@@ -18,6 +18,25 @@ class EscalateIncidentInput(BaseModel):
     ]
 
 
+class RequestReimbursementInput(BaseModel):
+    reason: str = Field(
+        min_length=1,
+        max_length=1000,
+    )
+
+    amount: float | None = Field(
+        default=None,
+        gt=0,
+        le=10000,
+    )
+
+    currency: str = Field(
+        default="EUR",
+        min_length=3,
+        max_length=3,
+    )
+
+
 class SearchKnowledgeBaseInput(BaseModel):
     query: str = Field(
         min_length=1,
@@ -44,6 +63,25 @@ def escalate_incident(
                 "Incident escalation has been "
                 "prepared for the human "
                 "operations team."
+            ),
+        },
+    )
+
+
+def request_reimbursement(
+        arguments: RequestReimbursementInput,
+) -> ToolExecutionResult:
+    return ToolExecutionResult(
+        tool_name="request_reimbursement",
+        status="completed",
+        output={
+            "reason": arguments.reason,
+            "amount": arguments.amount,
+            "currency": arguments.currency.upper(),
+            "simulated": True,
+            "message": (
+                "Reimbursement was approved for "
+                "simulated demo processing."
             ),
         },
     )
