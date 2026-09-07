@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 
@@ -248,3 +250,101 @@ async def test_agent_response_rejects_invalid_tool_arguments():
             ],
             tools=[],
         )
+
+
+@pytest.mark.asyncio
+async def test_analysis_disables_thinking_and_limits_output():
+    captured_payload = {}
+
+    def handler(
+            request: httpx.Request,
+    ) -> httpx.Response:
+        captured_payload.update(
+            json.loads(
+                request.content.decode()
+            )
+        )
+
+        return httpx.Response(
+            200,
+            json={
+                "message": {
+                    "content": (
+                        "{"
+                        '"category":"support",'
+                        '"priority":"normal",'
+                        '"intent":"information",'
+                        '"requires_human_approval":false,'
+                        '"recommended_action":'
+                        '"Provide information."'
+                        "}"
+                    )
+                }
+            },
+        )
+
+    provider = OllamaProvider(
+        transport=httpx.MockTransport(handler),
+    )
+
+    await provider.analyze_business_request(
+        source="website",
+        content="What is the refund policy?",
+    )
+
+    assert captured_payload["think"] is False
+    assert (
+            captured_payload["options"]["num_predict"]
+            == 128
+    )
+
+
+@pytest.mark.asyncio
+async def test_agent_disables_thinking_and_limits_output():
+    captured_payload = {}
+
+    def handler(
+            request: httpx.Request,
+    ) -> httpx.Response:
+        captured_payload.update(
+            json.loads(
+                request.content.decode()
+            )
+        )
+
+        return httpx.Response(
+            200,
+            json={
+                "message": {
+                    "content": (
+                        "No automated action is required."
+                    )
+                }
+            },
+        )
+
+    provider = OllamaProvider(
+        transport=httpx.MockTransport(handler),
+    )
+
+    await provider.generate_agent_response(
+        messages=[
+            {
+                "role": "user",
+                "content": "General request.",
+            }
+        ],
+        tools=[],
+    )
+
+    assert captured_payload["think"] is False
+    assert (
+            captured_payload["options"]["num_predict"]
+            == 192
+    )
+
+
+def test_ollama_provider_uses_configured_timeout():
+    provider = OllamaProvider()
+
+    assert provider.chat_timeout_seconds == 180.0

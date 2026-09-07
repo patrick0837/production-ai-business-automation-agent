@@ -44,7 +44,7 @@ services:
     image: ollama/ollama:0.32.14
 
     environment:
-      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_MAX_LOADED_MODELS: "2"
       OLLAMA_NUM_PARALLEL: "1"
 
     volumes:
@@ -114,6 +114,9 @@ services:
       AI_PROVIDER: ollama
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen3:4b-instruct
+      OLLAMA_CHAT_TIMEOUT_SECONDS: "180"
+      OLLAMA_ANALYSIS_NUM_PREDICT: "128"
+      OLLAMA_AGENT_NUM_PREDICT: "192"
 
       EMBEDDING_PROVIDER: ollama
       OLLAMA_EMBEDDING_MODEL: nomic-embed-text:v1.5
@@ -176,6 +179,9 @@ services:
       AI_PROVIDER: ollama
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen3:4b-instruct
+      OLLAMA_CHAT_TIMEOUT_SECONDS: "180"
+      OLLAMA_ANALYSIS_NUM_PREDICT: "128"
+      OLLAMA_AGENT_NUM_PREDICT: "192"
 
       EMBEDDING_PROVIDER: ollama
       OLLAMA_EMBEDDING_MODEL: nomic-embed-text:v1.5
