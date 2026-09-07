@@ -20,6 +20,35 @@ function getStringArgument(
         : null;
 }
 
+function getNumberArgument(
+    action: AgentAction,
+    key: string,
+) {
+    const value = action.arguments?.[key];
+
+    return typeof value === "number"
+        ? value
+        : null;
+}
+
+function formatAmount(
+    amount: number,
+    currency: string | null,
+) {
+    const normalizedCurrency =
+        currency?.toUpperCase() ?? null;
+
+    if (normalizedCurrency === "EUR") {
+        return `€${amount.toFixed(2)}`;
+    }
+
+    if (normalizedCurrency) {
+        return `${normalizedCurrency} ${amount.toFixed(2)}`;
+    }
+
+    return amount.toFixed(2);
+}
+
 export default function ApprovalCard({
                                          action,
                                      }: Props) {
@@ -45,6 +74,16 @@ export default function ApprovalCard({
     const severity = getStringArgument(
         action,
         "severity",
+    );
+
+    const currency = getStringArgument(
+        action,
+        "currency",
+    );
+
+    const amount = getNumberArgument(
+        action,
+        "amount",
     );
 
     async function approveAction() {
@@ -144,23 +183,41 @@ export default function ApprovalCard({
                 </div>
 
                 <span className="badge badge-pending-approval">
-          Pending Approval
-        </span>
+                    Pending Approval
+                </span>
             </div>
 
-            {(severity || reason) && (
+            {(severity ||
+                reason ||
+                amount !== null) && (
                 <div className="approval-details">
                     {severity && (
                         <div>
                             <span>Severity</span>
-                            <strong>{severity}</strong>
+                            <strong>
+                                {severity}
+                            </strong>
+                        </div>
+                    )}
+
+                    {amount !== null && (
+                        <div>
+                            <span>Amount</span>
+                            <strong>
+                                {formatAmount(
+                                    amount,
+                                    currency,
+                                )}
+                            </strong>
                         </div>
                     )}
 
                     {reason && (
                         <div>
                             <span>Reason</span>
-                            <strong>{reason}</strong>
+                            <strong>
+                                {reason}
+                            </strong>
                         </div>
                     )}
                 </div>

@@ -11,8 +11,10 @@ from .context import AgentExecutionContext
 from .schemas import ToolExecutionResult
 from .tools import (
     EscalateIncidentInput,
+    RequestReimbursementInput,
     SearchKnowledgeBaseInput,
     escalate_incident,
+    request_reimbursement,
     search_knowledge_base,
 )
 
@@ -106,6 +108,28 @@ TOOL_REGISTRY: dict[
         handler=escalate_incident,
         requires_approval=True,
     ),
+
+    "request_reimbursement": RegisteredTool(
+        name="request_reimbursement",
+        description=(
+            "Request an actual reimbursement, refund, "
+            "or other financial reimbursement action. "
+            "Use this tool when the user asks for money "
+            "to be reimbursed or refunded, or asks the "
+            "system to perform a reimbursement action. "
+            "Do not use this tool for informational "
+            "questions about reimbursement or refund "
+            "policy; use search_knowledge_base instead. "
+            "This is a financial action and always "
+            "requires human approval."
+        ),
+        input_model=(
+            RequestReimbursementInput
+        ),
+        handler=request_reimbursement,
+        requires_approval=True,
+    ),
+
     "search_knowledge_base": (
         RegisteredTool(
             name="search_knowledge_base",
