@@ -33,6 +33,15 @@ class OllamaProvider:
 
         self.base_url = settings.ollama_base_url
         self.model = settings.ollama_model
+        self.chat_timeout_seconds = (
+            settings.ollama_chat_timeout_seconds
+        )
+        self.analysis_num_predict = (
+            settings.ollama_analysis_num_predict
+        )
+        self.agent_num_predict = (
+            settings.ollama_agent_num_predict
+        )
         self.transport = transport
 
     async def _post_chat(
@@ -42,7 +51,7 @@ class OllamaProvider:
         try:
             async with httpx.AsyncClient(
                     base_url=self.base_url,
-                    timeout=120.0,
+                    timeout=self.chat_timeout_seconds,
                     transport=self.transport,
             ) as client:
                 response = await client.post(
@@ -131,8 +140,12 @@ Return only data matching the provided JSON schema.
                 BusinessRequestAnalysis.model_json_schema()
             ),
             "stream": False,
+            "think": False,
             "options": {
                 "temperature": 0,
+                "num_predict": (
+                    self.analysis_num_predict
+                ),
             },
         }
 
@@ -172,8 +185,12 @@ Return only data matching the provided JSON schema.
             "messages": messages,
             "tools": tools,
             "stream": False,
+            "think": False,
             "options": {
                 "temperature": 0,
+                "num_predict": (
+                    self.agent_num_predict
+                ),
             },
         }
 

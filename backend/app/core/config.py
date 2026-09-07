@@ -46,6 +46,12 @@ class Settings(BaseSettings):
         "qwen3:4b-instruct"
     )
 
+    ollama_chat_timeout_seconds: float = 180.0
+
+    ollama_analysis_num_predict: int = 128
+
+    ollama_agent_num_predict: int = 192
+
     embedding_provider: str = "ollama"
 
     ollama_embedding_model: str = (
